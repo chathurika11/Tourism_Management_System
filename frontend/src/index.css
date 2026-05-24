@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream text-dark;
+    font-family: 'Poppins', sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer components {
+  /* Custom Colors from your palette */
+  .bg-primary { background-color: #093C5D; }
+  .bg-secondary { background-color: #3B7597; }
+  .bg-accent { background-color: #6FD1D7; }
+  .bg-cta { background-color: #5DF8D8; }
+  
+  .text-primary { color: #093C5D; }
+  .text-secondary { color: #3B7597; }
+  .text-accent { color: #6FD1D7; }
+  .text-cta { color: #5DF8D8; }
+  
+  .border-primary { border-color: #093C5D; }
+  .border-secondary { border-color: #3B7597; }
+  .border-accent { border-color: #6FD1D7; }
+  .border-cta { border-color: #5DF8D8; }
+  
+  .hover\:bg-primary:hover { background-color: #093C5D; }
+  .hover\:bg-secondary:hover { background-color: #3B7597; }
+  .hover\:bg-accent:hover { background-color: #6FD1D7; }
+  .hover\:bg-cta:hover { background-color: #5DF8D8; }
+
+  /* Component Styles */
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-all duration-300;
+  }
+  .btn-secondary {
+    @apply bg-secondary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-all duration-300;
+  }
+  .btn-outline {
+    @apply border-2 border-primary text-primary px-6 py-2 rounded-lg hover:bg-primary hover:text-white transition-all duration-300;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300;
+  }
+  .input-field {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary;
+  }
+}
