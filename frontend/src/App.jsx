@@ -20,6 +20,12 @@ import CustomBooking from './pages/CustomBooking';
 import MyBookings from './pages/MyBookings';
 import AdminDashboard from './pages/AdminDashboard';
 
+// Import Detail Pages
+import VehicleDetailPage from './pages/VehicleDetailPage';
+import HotelDetailPage from './pages/HotelDetailPage';
+import TourDetailPage from './pages/TourDetailPage';
+import GuideDetailPage from './pages/GuideDetailPage';
+
 function App() {
   return (
     <Router>
@@ -36,9 +42,13 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/tours" element={<TourPackages />} />
+                <Route path="/tours/:id" element={<TourDetailPage />} />
                 <Route path="/hotels" element={<Hotels />} />
+                <Route path="/hotels/:id" element={<HotelDetailPage />} />
                 <Route path="/vehicles" element={<Vehicles />} />
+                <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
                 <Route path="/guides" element={<TourGuides />} />
+                <Route path="/guides/:id" element={<GuideDetailPage />} />
                 <Route path="/plan-tour" element={<CustomBooking />} />
                 
                 {/* Protected Routes (Require Login) */}
