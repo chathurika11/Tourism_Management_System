@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import registerImage from '../images/register.jpeg';
 // eslint-disable-next-line no-unused-vars
 import { UserPlus, User, Mail, Lock, Phone, Home, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -36,8 +37,13 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen py-12 px-4 bg-cream">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl mx-auto p-8">
+    <div className="min-h-screen py-12 px-4 relative overflow-hidden">
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${registerImage})`, filter: 'blur(4px)' }}
+      />
+      <div className="absolute inset-0 bg-black/20" />
+      <div className="relative z-10 bg-white rounded-2xl shadow-xl max-w-2xl mx-auto p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-primary">Join SerendiGo</h2>
           <p className="text-gray-600 mt-2">Create an account to plan your perfect Sri Lankan journey</p>

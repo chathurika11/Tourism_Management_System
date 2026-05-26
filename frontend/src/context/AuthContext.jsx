@@ -1,5 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
@@ -8,81 +7,124 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
-  // Wrapped fetchUser in useCallback to stabilize its identity
-  const fetchUser = useCallback(async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
-    } catch (error) {
-      console.error("Auth fetch error:", error);
-      localStorage.removeItem('token');
-      setToken(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]); // Re-create fetchUser only if token changes
-
+  // Check for existing session on load
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
     }
-  }, [token, fetchUser]); // fetchUser is now a safe dependency
+    setLoading(false);
+  }, []);
 
   const login = async (email, password) => {
+    console.log('Login attempt:', { email, password }); // Debug log
+    
+    // Input validation
+    if (!email || !password) {
+      toast.error('Please enter both email/username and password');
+      return false;
+    }
+
     try {
-      // For demo purposes, simulate login
-      if (email === 'admin@serendigo.com' && password === 'admin123') {
-        const mockUser = { name: 'Admin User', email: 'admin@serendigo.com', role: 'admin' };
-        localStorage.setItem('token', 'mock-token');
-        setToken('mock-token');
-        setUser(mockUser);
-        toast.success('Welcome to SerendiGo!');
-        return true;
-      } else if (email && password) {
-        const mockUser = { name: 'Guest User', email: email, role: 'user' };
-        localStorage.setItem('token', 'mock-token');
-        setToken('mock-token');
-        setUser(mockUser);
-        toast.success('Welcome to SerendiGo!');
+      // ADMIN LOGIN - Case insensitive check
+      if (email.toLowerCase() === 'admin' && password === 'admin1234') {
+        const adminUser = {
+          id: 'admin',
+          name: 'Administrator',
+          email: 'admin@serendigo.com',
+          role: 'admin',
+          isAdmin: true
+        };
+        localStorage.setItem('user', JSON.stringify(adminUser));
+        setUser(adminUser);
+        toast.success('Welcome Admin! 👋');
+        console.log('Admin login successful'); // Debug log
         return true;
       }
-      toast.error('Invalid credentials');
+      
+      // Regular user login (demo - accepts any email with password length >= 1)
+      if (email && password && password.length >= 1) {
+        const mockUser = {
+          id: Date.now(),
+          name: email.split('@')[0] || email,
+          email: email,
+          role: 'user',
+          isAdmin: false
+        };
+        localStorage.setItem('user', JSON.stringify(mockUser));
+        setUser(mockUser);
+        toast.success(`Welcome back, ${mockUser.name}! ✨`);
+        return true;
+      }
+      
+      toast.error('Invalid credentials. Please try again.');
       return false;
     } catch (error) {
-      toast.error('Login failed');
+      console.error('Login error:', error);
+      toast.error('Login failed. Please try again.');
       return false;
     }
   };
 
   const register = async (userData) => {
+    if (!userData.name || !userData.email || !userData.password) {
+      toast.error('Please fill in all required fields');
+      return false;
+    }
+
+    if (userData.password !== userData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return false;
+    }
+
     try {
-      const mockUser = { name: userData.name, email: userData.email, role: 'user' };
-      localStorage.setItem('token', 'mock-token');
-      setToken('mock-token');
+      const mockUser = {
+        id: Date.now(),
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone || '',
+        address: userData.address || '',
+        country: userData.country || '',
+        role: 'user',
+        isAdmin: false
+      };
+      localStorage.setItem('user', JSON.stringify(mockUser));
       setUser(mockUser);
-      toast.success('Account created! Welcome to SerendiGo');
+      toast.success(`Welcome to SerendiGo, ${userData.name}! 🎉`);
       return true;
     } catch (error) {
-      toast.error('Registration failed');
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
       return false;
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
+    localStorage.removeItem('user');
     setUser(null);
-    toast.success('Logged out from SerendiGo');
+    toast.success('Logged out successfully. See you soon! 👋');
   };
 
+  // Check if user is admin
+  const isAdmin = user?.role === 'admin' || user?.email === 'admin@serendigo.com' || user?.name === 'Administrator';
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        loading, 
+        login, 
+        register, 
+        logout, 
+        isAdmin 
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
