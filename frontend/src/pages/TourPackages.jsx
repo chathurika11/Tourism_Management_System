@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Star, MapPin, Search, Home, Car, Users, Eye, TrendingDown, Calendar, Clock } from 'lucide-react';
 import { tourPackages, calculatePackagePricingFn } from '../data/tourismData';
 import TourDetailModal from '../components/TourDetailModal';
 import { useTour } from '../context/TourContext';
+import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const TourPackages = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTour, setSelectedTour] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const { addTourFeedback } = useTour();
+  const { addTourFeedback, addBooking } = useTour();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const filteredPackages = tourPackages.filter(pkg =>
     pkg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -23,6 +27,36 @@ const TourPackages = () => {
 
   const handleAddFeedback = (feedback) => {
     addTourFeedback(feedback);
+  };
+
+  const handleBookNow = (tour) => {
+    if (!user) {
+      // Store intended booking in sessionStorage to recover after login
+      sessionStorage.setItem('pendingBooking', JSON.stringify({ type: 'package', tourId: tour.id, tourName: tour.name, price: tour.price }));
+      toast.error('Please login to book this package');
+      navigate('/login');
+      return;
+    }
+
+    // Create booking object
+    const booking = {
+      id: Date.now(),
+      type: 'Package',
+      packageName: tour.name,
+      packageId: tour.id,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+      passengers: 1,
+      totalAmount: tour.price,
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      bookingDate: new Date().toISOString().split('T')[0],
+      userId: user.id,
+    };
+
+    addBooking(booking);
+    toast.success('Booking created! Please complete payment.');
+    navigate('/my-bookings');
   };
 
   return (
@@ -53,7 +87,7 @@ const TourPackages = () => {
           {filteredPackages.map(pkg => {
             const pricing = calculatePackagePricingFn(pkg);
             const days = parseInt(pkg.duration.split(' ')[0]) || 5;
-            
+
             return (
               <div key={pkg.id} className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
                 <div className="relative overflow-hidden h-64">
@@ -68,12 +102,12 @@ const TourPackages = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-6">
                   <h3 className="font-bold text-xl text-primary mb-2 group-hover:text-secondary transition-colors">{pkg.name}</h3>
                   <div className="flex items-center gap-2 text-gray-500 mb-3"><MapPin size={16} /> {pkg.location}</div>
                   <p className="text-gray-600 mb-4 line-clamp-2">{pkg.description}</p>
-                  
+
                   <div className="bg-gray-50 rounded-xl p-4 mb-4">
                     <p className="font-semibold text-primary mb-2 text-sm">✨ Package Includes:</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -84,14 +118,25 @@ const TourPackages = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-3 items-center justify-between">
                     <div>
                       <span className="text-2xl font-bold text-primary">Rs {Math.round(pricing.total).toLocaleString()}</span>
                       <p className="text-xs text-green-600">Save Rs {Math.round(pricing.discountAmount).toLocaleString()} (5% off)</p>
                     </div>
-                    <button onClick={() => handleViewDetails(pkg)} className="bg-primary text-white px-5 py-2 rounded-xl hover:bg-secondary transition flex items-center gap-2">
-                      <Eye size={16} /> View Details
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleBookNow(pkg)}
+                        className="bg-primary text-white px-4 py-2 rounded-xl hover:bg-secondary transition flex items-center gap-1 text-sm"
+                      >
+                        Book Now
+                      </button>
+                      <button
+                        onClick={() => handleViewDetails(pkg)}
+                        className="bg-gray-200 text-primary px-4 py-2 rounded-xl hover:bg-gray-300 transition flex items-center gap-1 text-sm"
+                      >
+                        <Eye size={16} /> Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

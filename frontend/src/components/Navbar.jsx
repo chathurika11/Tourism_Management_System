@@ -10,14 +10,23 @@ const Navbar = () => {
   const location = useLocation();
   const isAdmin = user?.role === 'admin';
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
+    scrollToTop();
   };
 
-  // Don't render navbar on admin pages if you prefer a clean admin layout.
-  // But if you want to keep it, we'll hide public links.
-  // For admin, we show minimal links.
+  const handleNavigation = (path) => {
+    navigate(path);
+    scrollToTop();
+    setIsOpen(false);
+  };
+
+  // Public links – shown only to non‑admin users
   const publicLinks = [
     { path: '/', name: 'Home', icon: Home },
     { path: '/about', name: 'About', icon: Info },
@@ -32,81 +41,90 @@ const Navbar = () => {
     <nav className="bg-primary text-white shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <Link to={isAdmin ? '/admin' : '/'} className="text-2xl font-playfair font-bold">
+          <button
+            onClick={() => handleNavigation(isAdmin ? '/admin' : '/')}
+            className="text-2xl font-playfair font-bold hover:text-cta transition"
+          >
             SerendiGo
-          </Link>
+          </button>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex space-x-6">
-            {/* For non-admin users: show all public links */}
             {!isAdmin && (
               <>
                 {publicLinks.map(link => (
-                  <Link key={link.path} to={link.path} className="hover:text-cta transition flex items-center gap-1">
-                    <link.icon size={18}/> {link.name}
-                  </Link>
+                  <button
+                    key={link.path}
+                    onClick={() => handleNavigation(link.path)}
+                    className="hover:text-cta transition flex items-center gap-1"
+                  >
+                    <link.icon size={18} /> {link.name}
+                  </button>
                 ))}
               </>
             )}
 
-            {/* For admin: only Admin Dashboard and Logout (no public links) */}
             {user && isAdmin && (
-              <>
-                <Link to="/admin" className="hover:text-cta transition flex items-center gap-1">
-                  <Shield size={18}/> Admin Dashboard
-                </Link>
-              </>
+              <button
+                onClick={() => handleNavigation('/admin')}
+                className="hover:text-cta transition flex items-center gap-1"
+              >
+                <Shield size={18} /> Admin Dashboard
+              </button>
             )}
 
-            {/* Common user actions */}
             {user ? (
               <>
                 {!isAdmin && (
-                  <Link to="/my-bookings" className="hover:text-cta transition flex items-center gap-1">
-                    <User size={18}/> My Bookings
-                  </Link>
+                  <button
+                    onClick={() => handleNavigation('/my-bookings')}
+                    className="hover:text-cta transition flex items-center gap-1"
+                  >
+                    <User size={18} /> My Bookings
+                  </button>
                 )}
                 <button onClick={handleLogout} className="hover:text-cta transition flex items-center gap-1">
-                  <LogOut size={18}/> Logout
+                  <LogOut size={18} /> Logout
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" className="hover:text-cta transition">Login</Link>
-                <Link to="/register" className="hover:text-cta transition">Register</Link>
+                <button onClick={() => handleNavigation('/login')} className="hover:text-cta transition">Login</button>
+                <button onClick={() => handleNavigation('/register')} className="hover:text-cta transition">Register</button>
               </>
             )}
           </div>
 
           {/* Mobile menu button */}
           <button className="md:hidden" onClick={() => setIsOpen(!isOpen)}>
-            {isOpen ? <X size={24}/> : <Menu size={24}/>}
+            {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
         {/* Mobile Menu */}
         {isOpen && (
           <div className="md:hidden py-4 space-y-2">
-            {!isAdmin && (
-              <>
-                {publicLinks.map(link => (
-                  <Link key={link.path} to={link.path} className="block hover:text-cta" onClick={() => setIsOpen(false)}>
-                    {link.name}
-                  </Link>
-                ))}
-              </>
-            )}
+            {!isAdmin &&
+              publicLinks.map(link => (
+                <button
+                  key={link.path}
+                  onClick={() => handleNavigation(link.path)}
+                  className="block w-full text-left hover:text-cta"
+                >
+                  {link.name}
+                </button>
+              ))}
             {user && isAdmin && (
-              <Link to="/admin" className="block hover:text-cta" onClick={() => setIsOpen(false)}>
+              <button onClick={() => handleNavigation('/admin')} className="block w-full text-left hover:text-cta">
                 Admin Dashboard
-              </Link>
+              </button>
             )}
             {user ? (
               <>
                 {!isAdmin && (
-                  <Link to="/my-bookings" className="block hover:text-cta" onClick={() => setIsOpen(false)}>
+                  <button onClick={() => handleNavigation('/my-bookings')} className="block w-full text-left hover:text-cta">
                     My Bookings
-                  </Link>
+                  </button>
                 )}
                 <button onClick={() => { handleLogout(); setIsOpen(false); }} className="block w-full text-left hover:text-cta">
                   Logout
@@ -114,8 +132,8 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <Link to="/login" className="block hover:text-cta" onClick={() => setIsOpen(false)}>Login</Link>
-                <Link to="/register" className="block hover:text-cta" onClick={() => setIsOpen(false)}>Register</Link>
+                <button onClick={() => handleNavigation('/login')} className="block w-full text-left hover:text-cta">Login</button>
+                <button onClick={() => handleNavigation('/register')} className="block w-full text-left hover:text-cta">Register</button>
               </>
             )}
           </div>

@@ -1,5 +1,5 @@
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TourProvider } from './context/TourContext';
@@ -21,6 +21,15 @@ const AdminRedirect = ({ children }) => {
     return <Navigate to="/admin" replace />;
   }
   return children;
+};
+
+// Scroll to top on every route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
 };
 
 // Public pages
@@ -56,6 +65,7 @@ function App() {
     <Router>
       <AuthProvider>
         <TourProvider>
+          <ScrollToTop />
           <div className="min-h-screen flex flex-col">
             <Navbar />
             <main className="flex-grow">
@@ -80,9 +90,8 @@ function App() {
                   <Route path="/my-bookings" element={<PrivateRoute><AdminRedirect><MyBookings /></AdminRedirect></PrivateRoute>} />
                   <Route path="/payment" element={<PrivateRoute><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
 
-                  {/* Admin Routes – no index route (dashboard handled inside AdminDashboard) */}
+                  {/* Admin Routes */}
                   <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>}>
-                    {/* Removed index element – the dashboard shows stats directly when pathname === '/admin' */}
                     <Route path="hotels" element={<AdminHotels />} />
                     <Route path="vehicles" element={<AdminVehicles />} />
                     <Route path="guides" element={<AdminGuides />} />
