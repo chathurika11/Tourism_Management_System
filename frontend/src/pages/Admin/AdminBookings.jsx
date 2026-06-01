@@ -1,237 +1,330 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Send, Search } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CheckCircle, XCircle, Eye, Send, Calendar, MapPin, Car, Users, Hotel } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { bookings as initialBookings, getDashboardStats } from '../../data/tourismData';
+import { useAuth } from '../../context/AuthContext';
+import { vehicles, hotels, tourGuides } from '../../data/tourismData';
 
 const AdminBookings = () => {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [loading, setLoading] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [stats, setStats] = useState({ totalBookings: 0, totalRevenue: 0, totalUsers: 0, availableVehicles: 0 });
+  const [showModal, setShowModal] = useState(false);
 
-  // Load bookings from localStorage or use initial data
-  useEffect(() => {
-    loadBookings();
-    loadStats();
+  // Load bookings from localStorage
+  const loadBookings = useCallback(() => {
+    const stored = localStorage.getItem('bookings');
+    if (stored) {
+      setBookings(JSON.parse(stored));
+    }
   }, []);
 
-  const loadBookings = () => {
-    const storedBookings = localStorage.getItem('bookings');
-    if (storedBookings) {
-      setBookings(JSON.parse(storedBookings));
-    } else {
-      setBookings(initialBookings);
-      localStorage.setItem('bookings', JSON.stringify(initialBookings));
-    }
-  };
+  useEffect(() => {
+    loadBookings();
+    const handleStorageChange = () => loadBookings();
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [loadBookings]);
 
-  const loadStats = () => {
-    const currentStats = getDashboardStats();
-    setStats(currentStats);
-  };
+  // Helper to get resource by ID
+  const getVehicleById = (id) => vehicles.find(v => v.id === parseInt(id));
+  const getHotelById = (id) => hotels.find(h => h.id === parseInt(id));
+  const getGuideById = (id) => tourGuides.find(g => g.id === parseInt(id));
 
-  const saveBookings = (updatedBookings) => {
-    setBookings(updatedBookings);
-    localStorage.setItem('bookings', JSON.stringify(updatedBookings));
-    loadStats();
-  };
+  // Check if a resource (vehicle, hotel, guide) is available for given date range
+  const isResourceAvailable = (resourceType, resourceId, startDate, endDate, excludeBookingId = null) => {
+    const allBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-  // Simulate sending SMS
-  const sendSMS = (phoneNumber, message, type = 'info') => {
-    console.log(`📱 Sending SMS to ${phoneNumber}: ${message}`);
-    if (type === 'success') {
-      toast.success(`✓ SMS sent to ${phoneNumber}`);
-    } else if (type === 'error') {
-      toast.error(`✗ Failed to send SMS to ${phoneNumber}`);
-    } else {
-      toast.success(`SMS sent to ${phoneNumber}`);
+    for (const booking of allBookings) {
+      // Skip the current booking if we're editing
+      if (excludeBookingId && booking.id === excludeBookingId) continue;
+      if (booking.status !== 'confirmed') continue;
+
+      const bookingStart = new Date(booking.startDate);
+      const bookingEnd = new Date(booking.endDate);
+
+      // Check date overlap
+      if (start <= bookingEnd && end >= bookingStart) {
+        // Check if the resource is used in this booking
+        if (resourceType === 'vehicle' && booking.vehicleId === resourceId) return false;
+        if (resourceType === 'guide' && booking.guideId === resourceId) return false;
+        if (resourceType === 'hotel' && booking.hotelId === resourceId) return false;
+        // For multi-destination custom tours
+        if (booking.destinations) {
+          for (const dest of booking.destinations) {
+            if (resourceType === 'vehicle' && dest.vehicle?.id === resourceId) return false;
+            if (resourceType === 'guide' && dest.guide?.id === resourceId) return false;
+            if (resourceType === 'hotel' && dest.hotel?.id === resourceId) return false;
+          }
+        }
+      }
     }
     return true;
   };
 
-  const handleConfirmBooking = (bookingId) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (booking) {
-      const updatedBookings = bookings.map(b => 
-        b.id === bookingId ? { ...b, status: 'confirmed', paymentStatus: 'paid' } : b
-      );
-      saveBookings(updatedBookings);
-      
-      const message = `🎉 Dear ${booking.customerName}, your booking for ${booking.packageName} has been CONFIRMED! Travel dates: ${booking.startDate} to ${booking.endDate}. Total: Rs ${booking.totalAmount.toLocaleString()}. Thank you for choosing SerendiGo! ✨`;
-      sendSMS(booking.customerPhone, message, 'success');
-      toast.success(`✅ Booking #${bookingId} confirmed!`);
-    }
+  // Mark resources as booked for the given dates
+  const markResourcesBooked = (booking) => {
+    // This is just a placeholder – actual availability is checked on the fly using `isResourceAvailable`.
+    // The confirmation itself updates the booking status to 'confirmed', and future checks will see that.
+    // No separate "bookedDates" store needed because we query all confirmed bookings.
+    console.log('Resources marked as booked for booking', booking.id);
   };
 
-  const handleCancelBooking = (bookingId) => {
-    if (window.confirm('Are you sure you want to cancel this booking?')) {
-      const booking = bookings.find(b => b.id === bookingId);
-      if (booking) {
-        const updatedBookings = bookings.map(b => 
-          b.id === bookingId ? { ...b, status: 'cancelled', paymentStatus: 'unpaid' } : b
-        );
-        saveBookings(updatedBookings);
-        
-        const message = `⚠️ Dear ${booking.customerName}, your booking for ${booking.packageName} has been CANCELLED. For any inquiries, please contact our support team at +94 11 234 5678. - SerendiGo`;
-        sendSMS(booking.customerPhone, message, 'error');
-        toast.error(`❌ Booking #${bookingId} cancelled`);
+  // Send SMS simulation
+  const sendSMS = (booking) => {
+    let placesMsg = '';
+    let guideMsg = '';
+    let vehicleMsg = '';
+    let hotelMsg = '';
+
+    if (booking.destinations && booking.destinations.length) {
+      // Custom multi-destination booking
+      placesMsg = booking.destinations.map(d => `${d.district}: ${d.places.join(', ')}`).join(' | ');
+      guideMsg = booking.destinations.filter(d => d.guide).map(d => `${d.guide.name} (${d.district})`).join(', ');
+      vehicleMsg = booking.destinations.filter(d => d.vehicle).map(d => `${d.vehicle.model} (${d.district})`).join(', ');
+      hotelMsg = booking.destinations.filter(d => d.hotel).map(d => `${d.hotel.name} (${d.district})`).join(', ');
+    } else {
+      // Single package booking
+      placesMsg = booking.places?.join(', ') || booking.packageName || 'N/A';
+      guideMsg = booking.guideName || 'None';
+      vehicleMsg = booking.vehicleName || 'None';
+      hotelMsg = booking.hotelName || 'None';
+    }
+
+    const message = `✅ CONFIRMATION: ${booking.customerName}, your booking is confirmed!\n\n` +
+      `📍 Destinations/Places: ${placesMsg}\n` +
+      `👨‍🏫 Guides: ${guideMsg}\n` +
+      `🚗 Vehicles: ${vehicleMsg}\n` +
+      `🏨 Hotels: ${hotelMsg}\n` +
+      `📅 Dates: ${booking.startDate} to ${booking.endDate}\n` +
+      `👥 Passengers: ${booking.passengers}\n` +
+      `💰 Total: Rs ${booking.totalAmount?.toLocaleString()}\n\n` +
+      `Thank you for choosing SerendiGo!`;
+
+    console.log('📱 SMS sent to', booking.customerPhone, ':', message);
+    toast.success(`Confirmation sent to ${booking.customerPhone || 'customer'} via SMS`);
+  };
+
+  // Confirm booking
+  const confirmBooking = async (booking) => {
+    setLoading(true);
+    try {
+      // Check availability for all resources in the booking
+      let unavailableResources = [];
+
+      if (booking.destinations && booking.destinations.length) {
+        // Custom booking: check each destination's resources
+        for (const dest of booking.destinations) {
+          if (dest.vehicle && !isResourceAvailable('vehicle', dest.vehicle.id, booking.startDate, booking.endDate, booking.id)) {
+            unavailableResources.push(`Vehicle ${dest.vehicle.model} in ${dest.district}`);
+          }
+          if (dest.guide && !isResourceAvailable('guide', dest.guide.id, booking.startDate, booking.endDate, booking.id)) {
+            unavailableResources.push(`Guide ${dest.guide.name} in ${dest.district}`);
+          }
+          if (dest.hotel && !isResourceAvailable('hotel', dest.hotel.id, booking.startDate, booking.endDate, booking.id)) {
+            unavailableResources.push(`Hotel ${dest.hotel.name} in ${dest.district}`);
+          }
+        }
+      } else {
+        // Single package booking
+        if (booking.vehicleId && !isResourceAvailable('vehicle', booking.vehicleId, booking.startDate, booking.endDate, booking.id)) {
+          unavailableResources.push(`Vehicle ${booking.vehicleName}`);
+        }
+        if (booking.guideId && !isResourceAvailable('guide', booking.guideId, booking.startDate, booking.endDate, booking.id)) {
+          unavailableResources.push(`Guide ${booking.guideName}`);
+        }
+        if (booking.hotelId && !isResourceAvailable('hotel', booking.hotelId, booking.startDate, booking.endDate, booking.id)) {
+          unavailableResources.push(`Hotel ${booking.hotelName}`);
+        }
       }
+
+      if (unavailableResources.length > 0) {
+        toast.error(`Cannot confirm: ${unavailableResources.join(', ')} already booked for these dates.`);
+        setLoading(false);
+        return;
+      }
+
+      // Update booking status
+      const updatedBookings = bookings.map(b =>
+        b.id === booking.id ? { ...b, status: 'confirmed', confirmedAt: new Date().toISOString() } : b
+      );
+      localStorage.setItem('bookings', JSON.stringify(updatedBookings));
+      setBookings(updatedBookings);
+      window.dispatchEvent(new Event('storage'));
+
+      // Mark resources as booked (the availability check uses confirmed bookings, so this is automatic)
+      markResourcesBooked(booking);
+
+      // Send SMS
+      sendSMS(booking);
+
+      toast.success('Booking confirmed successfully!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to confirm booking');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSendReminder = (bookingId) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (booking) {
-      const message = `🌟 REMINDER: Dear ${booking.customerName}, your ${booking.packageName} tour starts on ${booking.startDate}. Please be ready for an amazing experience with SerendiGo! Contact us at +94 11 234 5678 for assistance.`;
-      sendSMS(booking.customerPhone, message, 'info');
-    }
+  const viewDetails = (booking) => {
+    setSelectedBooking(booking);
+    setShowModal(true);
   };
 
-  const handleSendPaymentReminder = (bookingId) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (booking) {
-      const message = `💰 PAYMENT REMINDER: Dear ${booking.customerName}, please complete your payment of Rs ${booking.totalAmount.toLocaleString()} for ${booking.packageName} to confirm your booking. - SerendiGo`;
-      sendSMS(booking.customerPhone, message, 'info');
-    }
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedBooking(null);
   };
-
-  const getStatusBadge = (status) => {
-    const styles = { 
-      pending: 'bg-yellow-100 text-yellow-800', 
-      confirmed: 'bg-green-100 text-green-800', 
-      cancelled: 'bg-red-100 text-red-800', 
-      completed: 'bg-blue-100 text-blue-800' 
-    };
-    return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${styles[status] || styles.pending}`}>{status}</span>;
-  };
-
-  const getPaymentBadge = (status) => {
-    const styles = { 
-      unpaid: 'bg-red-100 text-red-800', 
-      paid: 'bg-green-100 text-green-800', 
-      partial: 'bg-orange-100 text-orange-800' 
-    };
-    return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${styles[status] || styles.unpaid}`}>{status}</span>;
-  };
-
-  const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = booking.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          booking.packageName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          booking.customerPhone?.includes(searchTerm);
-    const matchesFilter = filterStatus === 'all' || booking.status === filterStatus;
-    return matchesSearch && matchesFilter;
-  });
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Manage Bookings</h1>
-          <p className="text-sm text-gray-500 mt-1">Total Bookings: {stats.totalBookings} | Revenue: ${stats.totalRevenue.toLocaleString()}</p>
-        </div>
-      </div>
-      
-      {/* Search and Filter */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search by name, package, or phone..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-            className="input-field pl-10" 
-          />
-        </div>
-        <select 
-          value={filterStatus} 
-          onChange={(e) => setFilterStatus(e.target.value)} 
-          className="input-field w-40"
-        >
-          <option value="all">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="completed">Completed</option>
-        </select>
-      </div>
-
-      {/* Bookings Table */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+      <h1 className="text-2xl font-bold text-primary mb-6">Manage Bookings</h1>
+      <div className="bg-white rounded-xl shadow overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (Rs)</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {bookings.length === 0 ? (
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dates</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <td colSpan="7" className="text-center py-8 text-gray-500">No bookings found</td>
               </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredBookings.map(booking => (
-                <tr key={booking.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm">#{booking.id}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{booking.customerName}</div>
-                    <div className="text-xs text-gray-500">{booking.customerPhone}</div>
+            ) : (
+              bookings.map((booking) => (
+                <tr key={booking.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{booking.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{booking.customerName}</div>
+                    <div className="text-sm text-gray-500">{booking.customerEmail}</div>
+                    <div className="text-sm text-gray-500">{booking.customerPhone || 'N/A'}</div>
                   </td>
-                  <td className="px-4 py-3 text-sm">{booking.packageName}</td>
-                  <td className="px-4 py-3 text-sm">{booking.startDate} to {booking.endDate}</td>
-                  <td className="px-4 py-3 text-sm font-medium">Rs {booking.totalAmount?.toLocaleString() || 0}</td>
-                  <td className="px-4 py-3">{getStatusBadge(booking.status)}</td>
-                  <td className="px-4 py-3">{getPaymentBadge(booking.paymentStatus)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button onClick={() => { setSelectedBooking(booking); setShowDetailsModal(true); }} className="text-blue-600 hover:text-blue-800" title="View Details"><Eye size={18} /></button>
-                      {booking.status === 'pending' && <button onClick={() => handleConfirmBooking(booking.id)} className="text-green-600 hover:text-green-800" title="Confirm Booking"><CheckCircle size={18} /></button>}
-                      {booking.status === 'pending' && <button onClick={() => handleCancelBooking(booking.id)} className="text-red-600 hover:text-red-800" title="Cancel Booking"><XCircle size={18} /></button>}
-                      <button onClick={() => handleSendReminder(booking.id)} className="text-cta hover:text-secondary" title="Send Reminder SMS"><Send size={18} /></button>
-                    </div>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {booking.type || booking.packageName || 'Custom Tour'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {booking.startDate} – {booking.endDate}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    Rs {booking.totalAmount?.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      booking.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {booking.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button
+                      onClick={() => viewDetails(booking)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      <Eye size={18} />
+                    </button>
+                    {booking.status === 'pending' && (
+                      <button
+                        onClick={() => confirmBooking(booking)}
+                        disabled={loading}
+                        className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                      >
+                        <CheckCircle size={18} />
+                      </button>
+                    )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filteredBookings.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No bookings found matching your search.</p>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Booking Details Modal */}
-      {showDetailsModal && selectedBooking && (
+      {/* Modal for booking details */}
+      {showModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-xl font-bold text-primary">Booking Details</h2>
-              <button onClick={() => setShowDetailsModal(false)} className="text-gray-500 hover:text-gray-700"><XCircle size={24} /></button>
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-primary">Booking Details</h2>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
+                <XCircle size={24} />
+              </button>
             </div>
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <p className="font-semibold">Booking ID:</p><p>#{selectedBooking.id}</p>
-                <p className="font-semibold">Customer Name:</p><p>{selectedBooking.customerName}</p>
-                <p className="font-semibold">Email:</p><p>{selectedBooking.customerEmail}</p>
-                <p className="font-semibold">Phone:</p><p className="flex items-center gap-1">{selectedBooking.customerPhone} <button onClick={() => handleSendReminder(selectedBooking.id)} className="text-cta"><Send size={14} /></button></p>
-                <p className="font-semibold">Package:</p><p>{selectedBooking.packageName}</p>
-                <p className="font-semibold">Travel Dates:</p><p>{selectedBooking.startDate} - {selectedBooking.endDate}</p>
-                <p className="font-semibold">Total Amount:</p><p className="font-bold text-primary">Rs {selectedBooking.totalAmount?.toLocaleString() || 0}</p>
-                <p className="font-semibold">Booking Date:</p><p>{selectedBooking.bookingDate}</p>
-                <p className="font-semibold">Status:</p><p>{getStatusBadge(selectedBooking.status)}</p>
-                <p className="font-semibold">Payment:</p><p>{getPaymentBadge(selectedBooking.paymentStatus)}</p>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Booking ID</p>
+                  <p className="font-semibold">{selectedBooking.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    selectedBooking.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedBooking.status}
+                  </span>
+                </div>
               </div>
-              <div className="border-t pt-4 mt-2 flex gap-3">
-                {selectedBooking.status === 'pending' && <button onClick={() => { handleConfirmBooking(selectedBooking.id); setShowDetailsModal(false); }} className="btn-primary flex-1 flex items-center justify-center gap-2"><CheckCircle size={16} /> Confirm Booking</button>}
-                <button onClick={() => handleSendPaymentReminder(selectedBooking.id)} className="btn-secondary flex-1 flex items-center justify-center gap-2"><Send size={16} /> Payment Reminder</button>
+
+              <div>
+                <p className="text-sm text-gray-500">Customer</p>
+                <p className="font-semibold">{selectedBooking.customerName}</p>
+                <p className="text-sm">{selectedBooking.customerEmail}</p>
+                <p className="text-sm">{selectedBooking.customerPhone || 'No phone'}</p>
               </div>
+
+              <div>
+                <p className="text-sm text-gray-500">Travel Dates</p>
+                <p className="font-semibold">{selectedBooking.startDate} – {selectedBooking.endDate}</p>
+                <p>Days: {selectedBooking.numberOfDays}</p>
+                <p>Passengers: {selectedBooking.passengers}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500">Itinerary</p>
+                {selectedBooking.destinations ? (
+                  selectedBooking.destinations.map((dest, i) => (
+                    <div key={i} className="border rounded-lg p-3 mt-2 bg-gray-50">
+                      <p className="font-semibold">{dest.district}</p>
+                      <p>Places: {dest.places.join(', ')}</p>
+                      {dest.guide && <p>Guide: {dest.guide.name} (Rs {dest.guide.pricePerDay}/day)</p>}
+                      {dest.vehicle && <p>Vehicle: {dest.vehicle.model} (Rs {dest.vehicle.pricePerDay}/day)</p>}
+                      {dest.hotel && <p>Hotel: {dest.hotel.name} (Rs {dest.hotel.pricePerNight}/night)</p>}
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <p><strong>Places:</strong> {selectedBooking.places?.join(', ') || 'N/A'}</p>
+                    <p><strong>Hotel:</strong> {selectedBooking.hotelName || 'None'}</p>
+                    <p><strong>Vehicle:</strong> {selectedBooking.vehicleName || 'None'}</p>
+                    <p><strong>Guide:</strong> {selectedBooking.guideName || 'None'}</p>
+                  </>
+                )}
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-right text-xl font-bold text-primary">Total: Rs {selectedBooking.totalAmount?.toLocaleString()}</p>
+              </div>
+
+              {selectedBooking.status === 'pending' && (
+                <button
+                  onClick={() => confirmBooking(selectedBooking)}
+                  disabled={loading}
+                  className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                >
+                  Confirm Booking
+                </button>
+              )}
             </div>
           </div>
         </div>
