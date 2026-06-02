@@ -4,6 +4,7 @@ import { Star, Award, Eye, Globe, Calendar, MapPin, Search, Users } from 'lucide
 import { tourGuides } from '../data/tourismData';
 import GuideDetailModal from '../components/GuideDetailModal';
 import { useTour } from '../context/TourContext';
+import guidesBg from '../images/ExpertTourGuides.jpg';
 
 const TourGuides = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,13 +30,16 @@ const TourGuides = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-secondary to-primary text-white py-20">
-        <div className="container mx-auto px-4 text-center">
+      <section
+        className="relative bg-cover bg-center bg-no-repeat text-white py-20"
+        style={{ backgroundImage: `linear-gradient(rgba(10, 25, 47, 0.7), rgba(10, 25, 47, 0.7)), url(${guidesBg})` }}
+      >
+        <div className="container mx-auto px-4 text-center relative z-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Expert Tour Guides</h1>
           <p className="text-lg max-w-2xl mx-auto opacity-90">Enhance your journey with our knowledgeable local guides who bring the magic of Sri Lanka to life</p>
           <div className="mt-8 max-w-md mx-auto">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-200" size={20} />
               <input
                 type="text"
                 placeholder="Search guides by name or specialty..."

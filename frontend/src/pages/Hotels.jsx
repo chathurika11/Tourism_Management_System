@@ -4,6 +4,7 @@ import { Star, MapPin, Eye, Wifi, Coffee, Home, Car, Users, Search } from 'lucid
 import { hotels } from '../data/tourismData';
 import HotelDetailModal from '../components/HotelDetailModal';
 import { useTour } from '../context/TourContext';
+import hotelsBg from '../images/HotelsPremiumAccommodationsBackground.jpg';
 
 const Hotels = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,13 +31,16 @@ const Hotels = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-secondary to-primary text-white py-20">
-        <div className="container mx-auto px-4 text-center">
+      <section
+        className="relative bg-cover bg-center bg-no-repeat text-white py-20"
+        style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.72)), url(${hotelsBg})` }}
+      >
+        <div className="container mx-auto px-4 text-center relative z-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Premium Accommodations</h1>
           <p className="text-lg max-w-2xl mx-auto opacity-90">Experience luxury and comfort at Sri Lanka's finest hotels and resorts</p>
           <div className="mt-8 max-w-md mx-auto">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-200" size={20} />
               <input
                 type="text"
                 placeholder="Search hotels by name or location..."

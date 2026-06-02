@@ -4,6 +4,7 @@ import { Star, MapPin, Search, Home, Car, Users, Eye, TrendingDown, Calendar, Cl
 import { tourPackages, calculatePackagePricingFn } from '../data/tourismData';
 import TourDetailModal from '../components/TourDetailModal';
 import { useTour } from '../context/TourContext';
+import tourPackagesBg from '../images/TourPackagesBackground.jpg';
 
 const TourPackages = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,13 +29,16 @@ const TourPackages = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-primary to-secondary text-white py-20">
-        <div className="container mx-auto px-4 text-center">
+      <section
+        className="relative bg-cover bg-center bg-no-repeat text-white py-20"
+        style={{ backgroundImage: `linear-gradient(rgba(10, 25, 47, 0.7), rgba(10, 25, 47, 0.7)), url(${tourPackagesBg})` }}
+      >
+        <div className="container mx-auto px-4 text-center relative z-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Tour Packages</h1>
           <p className="text-lg max-w-2xl mx-auto opacity-90">Discover the best of Sri Lanka with SerendiGo's curated tours</p>
           <div className="mt-8 max-w-md mx-auto">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-200" size={20} />
               <input
                 type="text"
                 placeholder="Search tours by name or location..."
