@@ -18,13 +18,20 @@ import hotelsGrandHotel from '../images/HotelsGrandHotel.jpeg';
 import hotelsTheHillClub from '../images/HotelsTheHillClub.jpeg';
 import hotelsHeritanceKandalama from '../images/HotelsHeritanceKandalama.jpeg';
 import hotelsCinnamonWild from '../images/HotelsCinnamonwild.jpeg';
-import vehiclesHondaDio from '../images/VehiclesHondaDio.jpeg';
-import vehiclesHondaFit from '../images/VehiclesHondafit.jpeg';
-import vehiclesToyotaAxio from '../images/VehiclesToyotaAxio.jpeg';
-import vehiclesToyotaPrado from '../images/VehiclesToyotaPrado.jpeg';
-import vehiclesNissanCaravan from '../images/VehiclesNissanCaravan.jpeg';
-import vehiclesMitsubishiMontero from '../images/VehiclesMitsubishiMontero.jpeg';
-import vehiclesToyotaHiace from '../images/VehiclesToyotaHiace.jpeg';
+import vehiclesHondaDio from '../images/honda dio.jpeg';
+import vehiclesHondaFit from '../images/honda fit.jpg';
+import vehiclesToyotaAxio from '../images/toyota axio.webp';
+import vehiclesToyotaPrado from '../images/toyota prado.webp';
+import vehiclesNissanCaravan from '../images/nissan caravan.webp';
+import vehiclesMitsubishiMontero from '../images/MitsubishiMontero.webp';
+import vehiclesToyotaHiace from '../images/Toyota Hiace.jpg';
+import priyaGuide from '../images/priya.jpg';
+import samanthaGuide from '../images/samantha.jpeg';
+import nuwanGuide from '../images/nuwan.jpeg';
+import lakminiGuide from '../images/lakmini.jpg';
+import ruwanGuide from '../images/ruwan.jpeg';
+import chamilaGuide from '../images/chamila.jpg';
+import dilshanGuide from '../images/dilshan.jpg';
 
 // Tour Packages Data
 export const tourPackages = [
@@ -110,13 +117,13 @@ export const vehicles = [
 
 // Tour Guides Data
 export const tourGuides = [
-  { id: 1, name: 'Priya Samarawickrama', specialty: 'Cultural & Historical Tours', district: 'Kandy', location: 'Kandy, Sigiriya, Anuradhapura', rating: 4.9, reviews: 124, language: 'English, German', experience: '15 years', certification: 'Senior Certified Guide', pricePerDay: 5000, popular: true, image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?w=400' },
-  { id: 2, name: 'Samantha Perera', specialty: 'Wildlife & Nature Safaris', district: 'Yala', location: 'Yala, Udawalawe, Wilpattu', rating: 4.8, reviews: 98, language: 'English, French', experience: '12 years', certification: 'Wildlife Specialist', pricePerDay: 5000, popular: true, image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?w=400' },
-  { id: 3, name: 'Nuwan Jayawardene', specialty: 'Hiking & Adventure', district: 'Ella', location: 'Ella, Nuwara Eliya, Horton Plains', rating: 4.7, reviews: 85, language: 'English', experience: '8 years', certification: 'Adventure Guide', pricePerDay: 4500, popular: true, image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?w=400' },
-  { id: 4, name: 'Lakmini Silva', specialty: 'Culinary & City Tours', district: 'Galle', location: 'Colombo, Galle, Kandy', rating: 4.9, reviews: 156, language: 'English, Mandarin', experience: '10 years', certification: 'Cultural Ambassador', pricePerDay: 5000, popular: true, image: 'https://images.pexels.com/photos/3711600/pexels-photo-3711600.jpeg?w=400' },
-  { id: 5, name: 'Ruwan Herath', specialty: 'Cultural Tours', district: 'Sigiriya', location: 'Sigiriya, Dambulla, Polonnaruwa', rating: 4.8, reviews: 112, language: 'English, Japanese', experience: '12 years', certification: 'Heritage Guide', pricePerDay: 5000, popular: false, image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?w=400' },
-  { id: 6, name: 'Chamila Perera', specialty: 'City Explorer', district: 'Colombo', location: 'Colombo, Negombo', rating: 4.6, reviews: 78, language: 'English, Hindi', experience: '7 years', certification: 'City Guide', pricePerDay: 4000, popular: false, image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?w=400' },
-  { id: 7, name: 'Dilshan Rajapaksha', specialty: 'Highland Tours', district: 'Nuwara Eliya', location: 'Nuwara Eliya, Bandarawela', rating: 4.8, reviews: 95, language: 'English', experience: '9 years', certification: 'Mountain Guide', pricePerDay: 4800, popular: false, image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?w=400' },
+  { id: 1, name: 'Priya Samarawickrama', specialty: 'Cultural & Historical Tours', district: 'Kandy', location: 'Kandy, Sigiriya, Anuradhapura', rating: 4.9, reviews: 124, language: 'English, German', experience: '15 years', certification: 'Senior Certified Guide', pricePerDay: 5000, popular: true, image: priyaGuide },
+  { id: 2, name: 'Samantha Perera', specialty: 'Wildlife & Nature Safaris', district: 'Yala', location: 'Yala, Udawalawe, Wilpattu', rating: 4.8, reviews: 98, language: 'English, French', experience: '12 years', certification: 'Wildlife Specialist', pricePerDay: 5000, popular: true, image: samanthaGuide },
+  { id: 3, name: 'Nuwan Jayawardene', specialty: 'Hiking & Adventure', district: 'Ella', location: 'Ella, Nuwara Eliya, Horton Plains', rating: 4.7, reviews: 85, language: 'English', experience: '8 years', certification: 'Adventure Guide', pricePerDay: 4500, popular: true, image: nuwanGuide },
+  { id: 4, name: 'Lakmini Silva', specialty: 'Culinary & City Tours', district: 'Galle', location: 'Colombo, Galle, Kandy', rating: 4.9, reviews: 156, language: 'English, Mandarin', experience: '10 years', certification: 'Cultural Ambassador', pricePerDay: 5000, popular: true, image: lakminiGuide },
+  { id: 5, name: 'Ruwan Herath', specialty: 'Cultural Tours', district: 'Sigiriya', location: 'Sigiriya, Dambulla, Polonnaruwa', rating: 4.8, reviews: 112, language: 'English, Japanese', experience: '12 years', certification: 'Heritage Guide', pricePerDay: 5000, popular: false, image: ruwanGuide },
+  { id: 6, name: 'Chamila Perera', specialty: 'City Explorer', district: 'Colombo', location: 'Colombo, Negombo', rating: 4.6, reviews: 78, language: 'English, Hindi', experience: '7 years', certification: 'City Guide', pricePerDay: 4000, popular: false, image: chamilaGuide },
+  { id: 7, name: 'Dilshan Rajapaksha', specialty: 'Highland Tours', district: 'Nuwara Eliya', location: 'Nuwara Eliya, Bandarawela', rating: 4.8, reviews: 95, language: 'English', experience: '9 years', certification: 'Mountain Guide', pricePerDay: 4800, popular: false, image: dilshanGuide },
 ];
 
 // Bookings Data
