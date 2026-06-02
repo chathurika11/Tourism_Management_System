@@ -26,7 +26,14 @@ const Navbar = () => {
     setIsOpen(false);
   };
 
-  // Public links – shown only to non‑admin users
+  // Helper to get active class
+  const getActiveClass = (path) => {
+    return location.pathname === path
+      ? 'text-cta font-semibold border-b-2 border-cta pb-1'
+      : 'hover:text-cta';
+  };
+
+  // Public links (visible only to non‑admin users)
   const publicLinks = [
     { path: '/', name: 'Home', icon: Home },
     { path: '/about', name: 'About', icon: Info },
@@ -50,24 +57,21 @@ const Navbar = () => {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex space-x-6">
-            {!isAdmin && (
-              <>
-                {publicLinks.map(link => (
-                  <button
-                    key={link.path}
-                    onClick={() => handleNavigation(link.path)}
-                    className="hover:text-cta transition flex items-center gap-1"
-                  >
-                    <link.icon size={18} /> {link.name}
-                  </button>
-                ))}
-              </>
-            )}
+            {!isAdmin &&
+              publicLinks.map(link => (
+                <button
+                  key={link.path}
+                  onClick={() => handleNavigation(link.path)}
+                  className={`flex items-center gap-1 transition ${getActiveClass(link.path)}`}
+                >
+                  <link.icon size={18} /> {link.name}
+                </button>
+              ))}
 
             {user && isAdmin && (
               <button
                 onClick={() => handleNavigation('/admin')}
-                className="hover:text-cta transition flex items-center gap-1"
+                className={`flex items-center gap-1 transition ${getActiveClass('/admin')}`}
               >
                 <Shield size={18} /> Admin Dashboard
               </button>
@@ -78,19 +82,23 @@ const Navbar = () => {
                 {!isAdmin && (
                   <button
                     onClick={() => handleNavigation('/my-bookings')}
-                    className="hover:text-cta transition flex items-center gap-1"
+                    className={`flex items-center gap-1 transition ${getActiveClass('/my-bookings')}`}
                   >
                     <User size={18} /> My Bookings
                   </button>
                 )}
-                <button onClick={handleLogout} className="hover:text-cta transition flex items-center gap-1">
+                <button onClick={handleLogout} className="flex items-center gap-1 hover:text-cta transition">
                   <LogOut size={18} /> Logout
                 </button>
               </>
             ) : (
               <>
-                <button onClick={() => handleNavigation('/login')} className="hover:text-cta transition">Login</button>
-                <button onClick={() => handleNavigation('/register')} className="hover:text-cta transition">Register</button>
+                <button onClick={() => handleNavigation('/login')} className="hover:text-cta transition">
+                  Login
+                </button>
+                <button onClick={() => handleNavigation('/register')} className="hover:text-cta transition">
+                  Register
+                </button>
               </>
             )}
           </div>
@@ -109,20 +117,26 @@ const Navbar = () => {
                 <button
                   key={link.path}
                   onClick={() => handleNavigation(link.path)}
-                  className="block w-full text-left hover:text-cta"
+                  className={`block w-full text-left transition ${location.pathname === link.path ? 'text-cta font-semibold' : 'hover:text-cta'}`}
                 >
                   {link.name}
                 </button>
               ))}
             {user && isAdmin && (
-              <button onClick={() => handleNavigation('/admin')} className="block w-full text-left hover:text-cta">
+              <button
+                onClick={() => handleNavigation('/admin')}
+                className={`block w-full text-left transition ${location.pathname === '/admin' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+              >
                 Admin Dashboard
               </button>
             )}
             {user ? (
               <>
                 {!isAdmin && (
-                  <button onClick={() => handleNavigation('/my-bookings')} className="block w-full text-left hover:text-cta">
+                  <button
+                    onClick={() => handleNavigation('/my-bookings')}
+                    className={`block w-full text-left transition ${location.pathname === '/my-bookings' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+                  >
                     My Bookings
                   </button>
                 )}
@@ -132,8 +146,12 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                <button onClick={() => handleNavigation('/login')} className="block w-full text-left hover:text-cta">Login</button>
-                <button onClick={() => handleNavigation('/register')} className="block w-full text-left hover:text-cta">Register</button>
+                <button onClick={() => handleNavigation('/login')} className="block w-full text-left hover:text-cta">
+                  Login
+                </button>
+                <button onClick={() => handleNavigation('/register')} className="block w-full text-left hover:text-cta">
+                  Register
+                </button>
               </>
             )}
           </div>

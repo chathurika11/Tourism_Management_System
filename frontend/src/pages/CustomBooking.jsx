@@ -124,10 +124,12 @@ const CustomBooking = () => {
   })();
 
   const getAvailableGuides = (district) => getGuidesByDistrict(district);
+  
   const getAvailableVehiclesForDestination = (dest, pax) => {
     const requiredSeats = pax + (dest.needGuide ? 1 : 0);
     return vehicles.filter(v => v.passengers >= requiredSeats).sort((a,b) => a.pricePerDay - b.pricePerDay);
   };
+  
   const getAvailableHotels = (district, budget) => {
     if (!budget) return getHotelsByDistrict(district);
     return getHotelsByDistrictAndBudget(district, budget);
@@ -146,13 +148,16 @@ const CustomBooking = () => {
     setDestinations([...destinations, { id: nextId, district: '', places: [], needGuide: false, guideId: '', needHotel: false, hotelBudget: '', hotelId: '', needVehicle: false, vehicleId: '' }]);
     setNextId(nextId + 1);
   };
+  
   const removeDestination = (id) => {
     if (destinations.length === 1) { toast.error('At least one destination required'); return; }
     setDestinations(destinations.filter(d => d.id !== id));
   };
+  
   const updateDestination = (id, field, value) => {
     setDestinations(destinations.map(d => d.id === id ? { ...d, [field]: value } : d));
   };
+  
   const togglePlace = (id, place) => {
     const dest = destinations.find(d => d.id === id);
     if (!dest) return;
@@ -190,6 +195,7 @@ const CustomBooking = () => {
     }
     return true;
   };
+  
   const validateStep2 = () => {
     if (!startDate || !endDate) { toast.error('Please select both start and end dates'); return false; }
     const today = new Date(); today.setHours(0,0,0,0);
@@ -199,10 +205,12 @@ const CustomBooking = () => {
     if (end < start) { toast.error('End date must be after start date'); return false; }
     return true;
   };
+  
   const validateStep3 = () => {
     if (passengers < 1) { toast.error('Passengers must be at least 1'); return false; }
     return true;
   };
+  
   const validateStep4 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -222,10 +230,35 @@ const CustomBooking = () => {
     else if (step === 5) setStep(6);
     else if (step === 6) setStep(7);
   };
+  
   const handlePrev = () => { if (step > 1) setStep(step-1); };
 
   const handleConfirmBooking = () => {
-    if (!user) { toast.error('Please login first'); navigate('/login'); return; }
+    if (!user) {
+      // Store pending custom booking in sessionStorage
+      const pendingData = {
+        type: 'custom',
+        destinations: destinations.map(d => ({
+          district: d.district,
+          places: d.places,
+          needGuide: d.needGuide,
+          guideId: d.guideId,
+          needHotel: d.needHotel,
+          hotelBudget: d.hotelBudget,
+          hotelId: d.hotelId,
+          needVehicle: d.needVehicle,
+          vehicleId: d.vehicleId,
+        })),
+        startDate,
+        endDate,
+        passengers,
+      };
+      sessionStorage.setItem('pendingCustomBooking', JSON.stringify(pendingData));
+      toast.error('Please login to confirm booking');
+      navigate('/login');
+      return;
+    }
+    
     if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4()) return;
     
     const allDestinationsData = destinations.map(d => ({
@@ -265,14 +298,13 @@ const CustomBooking = () => {
       customerName: user.name,
       customerPhone: user.phone || '',
     };
-    localStorage.setItem('pendingBooking', JSON.stringify(booking));
     addBooking(booking);
     setShowConfirmModal(true);
   };
   
   const finalConfirmBooking = () => {
-    toast.success('Booking summary created. Proceed to payment.');
-    setTimeout(() => navigate('/payment'), 1500);
+    toast.success('Booking confirmed! Redirecting to your bookings...');
+    navigate('/my-bookings');
   };
 
   const createNumberedIcon = (number, isStart = false) => {
@@ -288,7 +320,7 @@ const CustomBooking = () => {
     });
   };
 
-  // STEP 1: Destinations (without vehicle)
+  // ----- RENDER FUNCTIONS (kept exactly as in your original code) -----
   const renderStep1 = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-primary">Select Your Destinations</h2>
@@ -377,7 +409,6 @@ const CustomBooking = () => {
     </div>
   );
 
-  // STEP 4: Vehicle selection for each destination (after passengers known)
   const renderStep4 = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-primary">Select Vehicles (if needed)</h2>
@@ -506,6 +537,7 @@ const CustomBooking = () => {
       </div>
     );
   };
+  // ----- END OF RENDER FUNCTIONS -----
 
   return (
     <div className="min-h-screen bg-cream py-12">
