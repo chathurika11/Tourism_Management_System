@@ -14,7 +14,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Redirect component for admin users trying to access public routes
+// Redirect admin users away from public pages
 const AdminRedirect = ({ children }) => {
   const { user } = useAuth();
   if (user?.role === 'admin') {
@@ -32,7 +32,7 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Public pages
+// Lazy imports (keep as they are)
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Login = lazy(() => import('./pages/Login'));
@@ -51,7 +51,6 @@ const HotelDetailPage = lazy(() => import('./pages/HotelDetailPage'));
 const TourDetailPage = lazy(() => import('./pages/TourDetailPage'));
 const GuideDetailPage = lazy(() => import('./pages/GuideDetailPage'));
 
-// Admin pages
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminHotels = lazy(() => import('./pages/Admin/AdminHotels'));
 const AdminVehicles = lazy(() => import('./pages/Admin/AdminVehicles'));
@@ -71,7 +70,7 @@ function App() {
             <main className="flex-grow">
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  {/* Public Routes – redirect admin to /admin */}
+                  {/* Public routes – admin redirected */}
                   <Route path="/" element={<AdminRedirect><LandingPage /></AdminRedirect>} />
                   <Route path="/about" element={<AdminRedirect><AboutUs /></AdminRedirect>} />
                   <Route path="/login" element={<Login />} />
@@ -90,7 +89,7 @@ function App() {
                   <Route path="/my-bookings" element={<PrivateRoute><AdminRedirect><MyBookings /></AdminRedirect></PrivateRoute>} />
                   <Route path="/payment" element={<PrivateRoute><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
 
-                  {/* Admin Routes */}
+                  {/* Admin routes */}
                   <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>}>
                     <Route path="hotels" element={<AdminHotels />} />
                     <Route path="vehicles" element={<AdminVehicles />} />
