@@ -1,11 +1,37 @@
 // Shared data for all pages with high-quality images
+import packagesSigiriya from '../images/packagesSigiriya.jpeg';
+import packagesGalleFort from '../images/packagesgallefort.jpeg';
+import packagesElla from '../images/packagesElla.jpeg';
+import packagesNuwaraEliya from '../images/packagesnuwaraeliya.jpeg';
+import hotelsJetwingBlue from '../images/HotelsJetwingBlue.jpeg';
+import hotelsCinnamonLakeside from '../images/HotelsCinnamonlakeside.jpeg.jpg';
+import hotelsGalleFaceHotel from '../images/HotelsGallefaceHotel.jpeg.jpeg';
+import hotelsCinnamonLodge from '../images/HotelsCinnamonLodge.jpeg.jpg';
+import hotelsEarlsRegency from '../images/HotelsEarlsRegency.jpeg';
+import hotelsMahaweliReach from '../images/HotelsMahaweliReach.jpeg';
+import hotelsAmangalla from '../images/HotelsAmangalla.jpeg';
+import hotelsJetwingLighthouse from '../images/HotelsJetwinglighthouse.jpg';
+import hotelsFortBazaar from '../images/HotelsFortBazzar.jpeg';
+import hotels98AcresResort from '../images/Hotels98Acresresort.jpeg';
+import hotelsEllaJungleResort from '../images/HotelsEllaJungleresort.jpeg';
+import hotelsGrandHotel from '../images/HotelsGrandHotel.jpeg';
+import hotelsTheHillClub from '../images/HotelsTheHillClub.jpeg';
+import hotelsHeritanceKandalama from '../images/HotelsHeritanceKandalama.jpeg';
+import hotelsCinnamonWild from '../images/HotelsCinnamonwild.jpeg';
+import vehiclesHondaDio from '../images/VehiclesHondaDio.jpeg';
+import vehiclesHondaFit from '../images/VehiclesHondafit.jpeg';
+import vehiclesToyotaAxio from '../images/VehiclesToyotaAxio.jpeg';
+import vehiclesToyotaPrado from '../images/VehiclesToyotaPrado.jpeg';
+import vehiclesNissanCaravan from '../images/VehiclesNissanCaravan.jpeg';
+import vehiclesMitsubishiMontero from '../images/VehiclesMitsubishiMontero.jpeg';
+import vehiclesToyotaHiace from '../images/VehiclesToyotaHiace.jpeg';
 
 // Tour Packages Data
 export const tourPackages = [
   { 
     id: 1, name: 'Cultural Triangle Tour', location: 'Kandy, Sigiriya', district: 'Kandy', rating: 4.8, price: 25000,
     description: 'Explore ancient cities and Buddhist temples including Sigiriya Rock Fortress and Temple of the Tooth', 
-    image: 'https://images.pexels.com/photos/1603657/sigiriya-lion-rock-sri-lanka-fortress-1603657.jpeg?w=800', 
+    image: packagesSigiriya,
     duration: '5 days', popular: true, 
     includes: { 
       hotel: { id: 4, name: 'Cinnamon Lodge', location: 'Kandy', pricePerNight: 18500 },
@@ -17,7 +43,7 @@ export const tourPackages = [
   { 
     id: 2, name: 'Galle Day Tour', location: 'Galle Fort', district: 'Galle', rating: 4.5, price: 18000,
     description: 'Visit the historic Dutch fort and explore colonial architecture', 
-    image: 'https://images.pexels.com/photos/158366/galle-fort-sri-lanka-fortress-158366.jpeg?w=800', 
+    image: packagesGalleFort,
     duration: '1 day', popular: true, 
     includes: { 
       hotel: { id: 7, name: 'Amangalla', location: 'Galle', pricePerNight: 22000 },
@@ -29,7 +55,7 @@ export const tourPackages = [
   { 
     id: 3, name: 'Ella Escape', location: 'Ella', district: 'Ella', rating: 4.9, price: 22000,
     description: 'Scenic train ride, hiking to Nine Arches Bridge and Little Adam\'s Peak', 
-    image: 'https://images.pexels.com/photos/2090943/pexels-photo-2090943.jpeg?w=800', 
+    image: packagesElla,
     duration: '3 days', popular: true, 
     includes: { 
       hotel: { id: 10, name: '98 Acres Resort', location: 'Ella', pricePerNight: 16500 },
@@ -41,7 +67,7 @@ export const tourPackages = [
   { 
     id: 4, name: 'Nuwara Eliya Highlands', location: 'Nuwara Eliya', district: 'Nuwara Eliya', rating: 4.7, price: 30000,
     description: 'Tea plantations, Gregory Lake, and cool climate experience', 
-    image: 'https://images.pexels.com/photos/13017369/pexels-photo-13017369.jpeg?w=800', 
+    image: packagesNuwaraEliya,
     duration: '4 days', popular: false, 
     includes: { 
       hotel: { id: 12, name: 'Grand Hotel', location: 'Nuwara Eliya', pricePerNight: 14000 },
@@ -54,32 +80,32 @@ export const tourPackages = [
 
 // Hotels Data
 export const hotels = [
-  { id: 1, name: 'Jetwing Blue', location: 'Negombo', district: 'Colombo', pricePerNight: 12500, rating: 4.7, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: true, amenities: ['Pool', 'Spa', 'Restaurant', 'Beach Access'] },
-  { id: 2, name: 'Cinnamon Lakeside', location: 'Colombo', district: 'Colombo', pricePerNight: 18000, rating: 4.6, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: false, amenities: ['Pool', 'Spa', 'Multiple Restaurants'] },
-  { id: 3, name: 'Galle Face Hotel', location: 'Colombo', district: 'Colombo', pricePerNight: 22000, rating: 4.8, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: false, amenities: ['Heritage Building', 'Ocean View', 'Fine Dining'] },
-  { id: 4, name: 'Cinnamon Lodge', location: 'Kandy', district: 'Kandy', pricePerNight: 18500, rating: 4.9, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: true, amenities: ['Pool', 'Spa', 'Nature Trails'] },
-  { id: 5, name: 'Earl\'s Regency', location: 'Kandy', district: 'Kandy', pricePerNight: 16500, rating: 4.7, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: false, amenities: ['Pool', 'Gym', 'Multiple Restaurants'] },
-  { id: 6, name: 'Mahaweli Reach', location: 'Kandy', district: 'Kandy', pricePerNight: 15000, rating: 4.6, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: false, amenities: ['River View', 'Pool', 'Spa'] },
-  { id: 7, name: 'Amangalla', location: 'Galle', district: 'Galle', pricePerNight: 22000, rating: 4.9, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: true, amenities: ['Spa', 'Fine Dining', 'Heritage Building'] },
-  { id: 8, name: 'Jetwing Lighthouse', location: 'Galle', district: 'Galle', pricePerNight: 19500, rating: 4.8, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: false, amenities: ['Pool', 'Spa', 'Beach Access'] },
-  { id: 9, name: 'Fort Bazaar', location: 'Galle', district: 'Galle', pricePerNight: 16000, rating: 4.7, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: false, amenities: ['Boutique Hotel', 'Library', 'Courtyard'] },
-  { id: 10, name: '98 Acres Resort', location: 'Ella', district: 'Ella', pricePerNight: 16500, rating: 4.8, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: true, amenities: ['Pool', 'Restaurant', 'Mountain Views'] },
-  { id: 11, name: 'Ella Jungle Resort', location: 'Ella', district: 'Ella', pricePerNight: 12000, rating: 4.5, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: false, amenities: ['Jungle View', 'Nature Trails'] },
-  { id: 12, name: 'Grand Hotel', location: 'Nuwara Eliya', district: 'Nuwara Eliya', pricePerNight: 14000, rating: 4.7, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: true, amenities: ['Pool', 'Golf', 'Multiple Restaurants'] },
-  { id: 13, name: 'The Hill Club', location: 'Nuwara Eliya', district: 'Nuwara Eliya', pricePerNight: 12000, rating: 4.6, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: false, amenities: ['Heritage Building', 'Library', 'Garden'] },
-  { id: 14, name: 'Heritance Kandalama', location: 'Dambulla', district: 'Sigiriya', pricePerNight: 18500, rating: 4.9, image: 'https://images.pexels.com/photos/189296/pexels-photo-189296.jpeg?w=600', popular: true, amenities: ['Pool', 'Spa', 'Nature Trails'] },
-  { id: 15, name: 'Cinnamon Wild', location: 'Yala', district: 'Yala', pricePerNight: 15500, rating: 4.6, image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?w=600', popular: true, amenities: ['Pool', 'Restaurant', 'Wildlife Viewing'] },
+  { id: 1, name: 'Jetwing Blue', location: 'Negombo', district: 'Colombo', pricePerNight: 12500, rating: 4.7, image: hotelsJetwingBlue, popular: true, amenities: ['Pool', 'Spa', 'Restaurant', 'Beach Access'] },
+  { id: 2, name: 'Cinnamon Lakeside', location: 'Colombo', district: 'Colombo', pricePerNight: 18000, rating: 4.6, image: hotelsCinnamonLakeside, popular: false, amenities: ['Pool', 'Spa', 'Multiple Restaurants'] },
+  { id: 3, name: 'Galle Face Hotel', location: 'Colombo', district: 'Colombo', pricePerNight: 22000, rating: 4.8, image: hotelsGalleFaceHotel, popular: false, amenities: ['Heritage Building', 'Ocean View', 'Fine Dining'] },
+  { id: 4, name: 'Cinnamon Lodge', location: 'Kandy', district: 'Kandy', pricePerNight: 18500, rating: 4.9, image: hotelsCinnamonLodge, popular: true, amenities: ['Pool', 'Spa', 'Nature Trails'] },
+  { id: 5, name: 'Earl\'s Regency', location: 'Kandy', district: 'Kandy', pricePerNight: 16500, rating: 4.7, image: hotelsEarlsRegency, popular: false, amenities: ['Pool', 'Gym', 'Multiple Restaurants'] },
+  { id: 6, name: 'Mahaweli Reach', location: 'Kandy', district: 'Kandy', pricePerNight: 15000, rating: 4.6, image: hotelsMahaweliReach, popular: false, amenities: ['River View', 'Pool', 'Spa'] },
+  { id: 7, name: 'Amangalla', location: 'Galle', district: 'Galle', pricePerNight: 22000, rating: 4.9, image: hotelsAmangalla, popular: true, amenities: ['Spa', 'Fine Dining', 'Heritage Building'] },
+  { id: 8, name: 'Jetwing Lighthouse', location: 'Galle', district: 'Galle', pricePerNight: 19500, rating: 4.8, image: hotelsJetwingLighthouse, popular: false, amenities: ['Pool', 'Spa', 'Beach Access'] },
+  { id: 9, name: 'Fort Bazaar', location: 'Galle', district: 'Galle', pricePerNight: 16000, rating: 4.7, image: hotelsFortBazaar, popular: false, amenities: ['Boutique Hotel', 'Library', 'Courtyard'] },
+  { id: 10, name: '98 Acres Resort', location: 'Ella', district: 'Ella', pricePerNight: 16500, rating: 4.8, image: hotels98AcresResort, popular: true, amenities: ['Pool', 'Restaurant', 'Mountain Views'] },
+  { id: 11, name: 'Ella Jungle Resort', location: 'Ella', district: 'Ella', pricePerNight: 12000, rating: 4.5, image: hotelsEllaJungleResort, popular: false, amenities: ['Jungle View', 'Nature Trails'] },
+  { id: 12, name: 'Grand Hotel', location: 'Nuwara Eliya', district: 'Nuwara Eliya', pricePerNight: 14000, rating: 4.7, image: hotelsGrandHotel, popular: true, amenities: ['Pool', 'Golf', 'Multiple Restaurants'] },
+  { id: 13, name: 'The Hill Club', location: 'Nuwara Eliya', district: 'Nuwara Eliya', pricePerNight: 12000, rating: 4.6, image: hotelsTheHillClub, popular: false, amenities: ['Heritage Building', 'Library', 'Garden'] },
+  { id: 14, name: 'Heritance Kandalama', location: 'Dambulla', district: 'Sigiriya', pricePerNight: 18500, rating: 4.9, image: hotelsHeritanceKandalama, popular: true, amenities: ['Pool', 'Spa', 'Nature Trails'] },
+  { id: 15, name: 'Cinnamon Wild', location: 'Yala', district: 'Yala', pricePerNight: 15500, rating: 4.6, image: hotelsCinnamonWild, popular: true, amenities: ['Pool', 'Restaurant', 'Wildlife Viewing'] },
 ];
 
 // Vehicles Data
 export const vehicles = [
-  { id: 1, type: 'Scooter', model: 'Honda Dio', pricePerDay: 2500, passengers: 2, fuelType: 'Petrol', mileage: '45 km/l', year: '2024', popular: true, district: 'Colombo', rating: 4.7, location: 'Colombo', status: 'available', image: 'https://images.pexels.com/photos/1046997/pexels-photo-1046997.jpeg?w=600' },
-  { id: 2, type: 'Car', model: 'Honda Fit', pricePerDay: 6000, passengers: 4, fuelType: 'Petrol', mileage: '20 km/l', year: '2023', popular: false, district: 'Colombo', rating: 4.5, location: 'Colombo', status: 'available', image: 'https://images.pexels.com/photos/116675/pexels-photo-116675.jpeg?w=600' },
-  { id: 3, type: 'Car', model: 'Toyota Axio', pricePerDay: 6500, passengers: 4, fuelType: 'Petrol', mileage: '18 km/l', year: '2023', popular: true, district: 'Kandy', rating: 4.8, location: 'Kandy', status: 'available', image: 'https://images.pexels.com/photos/116675/pexels-photo-116675.jpeg?w=600' },
-  { id: 4, type: 'SUV', model: 'Toyota Prado', pricePerDay: 12000, passengers: 7, fuelType: 'Diesel', mileage: '12 km/l', year: '2024', popular: true, district: 'Ella', rating: 4.9, location: 'Ella', status: 'available', image: 'https://images.pexels.com/photos/2127733/pexels-photo-2127733.jpeg?w=600' },
-  { id: 5, type: 'Van', model: 'Nissan Caravan', pricePerDay: 9000, passengers: 10, fuelType: 'Diesel', mileage: '14 km/l', year: '2023', popular: true, district: 'Galle', rating: 4.4, location: 'Galle', status: 'maintenance', image: 'https://images.pexels.com/photos/2127733/pexels-photo-2127733.jpeg?w=600' },
-  { id: 6, type: 'SUV', model: 'Mitsubishi Montero', pricePerDay: 11000, passengers: 7, fuelType: 'Diesel', mileage: '11 km/l', year: '2023', popular: false, district: 'Kandy', rating: 4.6, location: 'Kandy', status: 'available', image: 'https://images.pexels.com/photos/2127733/pexels-photo-2127733.jpeg?w=600' },
-  { id: 7, type: 'Van', model: 'Toyota Hiace', pricePerDay: 10000, passengers: 10, fuelType: 'Diesel', mileage: '13 km/l', year: '2024', popular: false, district: 'Ella', rating: 4.3, location: 'Ella', status: 'booked', image: 'https://images.pexels.com/photos/2127733/pexels-photo-2127733.jpeg?w=600' },
+  { id: 1, type: 'Scooter', model: 'Honda Dio', pricePerDay: 2500, passengers: 2, fuelType: 'Petrol', mileage: '45 km/l', year: '2024', popular: true, district: 'Colombo', rating: 4.7, location: 'Colombo', status: 'available', image: vehiclesHondaDio },
+  { id: 2, type: 'Car', model: 'Honda Fit', pricePerDay: 6000, passengers: 4, fuelType: 'Petrol', mileage: '20 km/l', year: '2023', popular: false, district: 'Colombo', rating: 4.5, location: 'Colombo', status: 'available', image: vehiclesHondaFit },
+  { id: 3, type: 'Car', model: 'Toyota Axio', pricePerDay: 6500, passengers: 4, fuelType: 'Petrol', mileage: '18 km/l', year: '2023', popular: true, district: 'Kandy', rating: 4.8, location: 'Kandy', status: 'available', image: vehiclesToyotaAxio },
+  { id: 4, type: 'SUV', model: 'Toyota Prado', pricePerDay: 12000, passengers: 7, fuelType: 'Diesel', mileage: '12 km/l', year: '2024', popular: true, district: 'Ella', rating: 4.9, location: 'Ella', status: 'available', image: vehiclesToyotaPrado },
+  { id: 5, type: 'Van', model: 'Nissan Caravan', pricePerDay: 9000, passengers: 10, fuelType: 'Diesel', mileage: '14 km/l', year: '2023', popular: true, district: 'Galle', rating: 4.4, location: 'Galle', status: 'maintenance', image: vehiclesNissanCaravan },
+  { id: 6, type: 'SUV', model: 'Mitsubishi Montero', pricePerDay: 11000, passengers: 7, fuelType: 'Diesel', mileage: '11 km/l', year: '2023', popular: false, district: 'Kandy', rating: 4.6, location: 'Kandy', status: 'available', image: vehiclesMitsubishiMontero },
+  { id: 7, type: 'Van', model: 'Toyota Hiace', pricePerDay: 10000, passengers: 10, fuelType: 'Diesel', mileage: '13 km/l', year: '2024', popular: false, district: 'Ella', rating: 4.3, location: 'Ella', status: 'booked', image: vehiclesToyotaHiace },
 ];
 
 // Tour Guides Data

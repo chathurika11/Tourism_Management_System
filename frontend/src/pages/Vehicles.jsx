@@ -4,6 +4,7 @@ import { Car, Eye, Users, Fuel, Calendar, Search, Star } from 'lucide-react';
 import { vehicles } from '../data/tourismData';
 import VehicleDetailModal from '../components/VehicleDetailModal';
 import { useTour } from '../context/TourContext';
+import vehiclesBg from '../images/VehiclesforRentBackground.png';
 
 const Vehicles = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,13 +30,16 @@ const Vehicles = () => {
   return (
     <div className="min-h-screen bg-cream">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-primary to-accent text-white py-20">
-        <div className="container mx-auto px-4 text-center">
+      <section
+        className="relative bg-cover bg-center bg-no-repeat text-white py-20"
+        style={{ backgroundImage: `linear-gradient(rgba(10, 25, 47, 0.7), rgba(10, 25, 47, 0.7)), url(${vehiclesBg})` }}
+      >
+        <div className="container mx-auto px-4 text-center relative z-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Vehicles for Rent</h1>
           <p className="text-lg max-w-2xl mx-auto opacity-90">Travel across Sri Lanka in comfort and style. From nimble scooters to spacious vans</p>
           <div className="mt-8 max-w-md mx-auto">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-200" size={20} />
               <input
                 type="text"
                 placeholder="Search vehicles by model or type..."
