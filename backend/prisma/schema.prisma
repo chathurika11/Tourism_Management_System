@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  username      String    @unique
+  email         String?
+  phone         String?
+  address       String?
+  country       String?
+  idNumber      String?   // NIC or Passport number
+  idType        String?   // "nic" or "passport"
+  role          String    @default("user")
+  password      String
+  resetToken    String?
+  resetExpires  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  bookings      Booking[]
+}
+
+model Booking {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @db.ObjectId
+  user          User     @relation(fields: [userId], references: [id])
+  type          String
+  packageName   String?
+  destinations  Json?      // stores array of objects (district, places, guide, vehicle, hotel)
+  startDate     DateTime
+  endDate       DateTime
+  numberOfDays  Int
+  passengers    Int
+  totalAmount   Float
+  status        String   @default("pending")
+  paymentStatus String   @default("unpaid")
+  bookingDate   DateTime @default(now())
+  confirmedAt   DateTime?
+  
+  cardLastFour    String?   // last 4 digits of card
+  cardType        String?   // "Visa", "Mastercard", etc.
+  paymentMethod   String?   // "card"
+  transactionId   String?    // for future use (optional)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Vehicle {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  type          String
+  model         String
+  pricePerDay   Float
+  passengers    Int
+  fuelType      String?
+  fuelEfficiency String?
+  year          String?
+  insuranceIncluded Boolean @default(true)
+  supportHours  String   @default("24/7")
+  pickupLocations String[] @default([])
+  includedFeatures String[] @default([])
+  securityDeposit Float    @default(0)
+  depositRefundable Boolean @default(true)
+  rating        Float    @default(0)
+  location      String
+  district      String
+  status        String   @default("available")
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tourPackages TourPackage[]
+
+  @@index([district])
+  @@index([type])
+}
+
+
+
+model Hotel {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  location      String
+  district      String
+  pricePerNight Float
+  rating        Float    @default(0)
+  amenities     String[]   // now holds both amenities and what's included
+  image         String
+  popular       Boolean  @default(false)
+  checkIn       String   @default("2:00 PM")
+  checkOut      String   @default("12:00 PM")
+  freeCancellationHours Int @default(48)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  breakfastIncluded Boolean @default(false)
+  tourPackages TourPackage[]
+
+  @@index([district])
+  @@index([popular])
+}
+
+model Guide {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  specialty     String
+  district      String
+  location      String?
+  rating        Float    @default(0)
+  reviews       Int      @default(0)
+  language      String?
+  experience    String?
+  certification String?
+  pricePerDay   Float
+  popular       Boolean  @default(false)
+  description   String?  // NEW: "Why choose this guide?"
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tourPackages TourPackage[]
+  
+  @@index([district])
+  @@index([specialty])
+}
+
+
+model VehicleFeedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  hotelId   String   @db.ObjectId
+  userId    String   @db.ObjectId
+  rating    Int
+  comment   String
+  reply     String?  // admin reply
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model GuideFeedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  hotelId   String   @db.ObjectId
+  userId    String   @db.ObjectId
+  rating    Int
+  comment   String
+  reply     String?  // admin reply
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model HotelFeedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  hotelId   String   @db.ObjectId
+  userId    String   @db.ObjectId
+  rating    Int
+  comment   String
+  reply     String?  // admin reply
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model TourFeedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  hotelId   String   @db.ObjectId
+  userId    String   @db.ObjectId
+  rating    Int
+  comment   String
+  reply     String?  // admin reply
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model TourPackage {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  description   String
+  duration      String   // e.g., "5 days"
+  location      String   // main destination
+  price         Float
+  rating        Float    @default(0)
+  image         String
+  popular       Boolean  @default(false)
+  mealPlan      String?  // e.g., "Breakfast & Dinner"
+  inclusions    String[] // array of strings like "Hotel", "Vehicle", "Guide", "Meals", "Sightseeing"
+  
+  // Relations - optional because a package may not include a hotel/vehicle/guide
+  hotelId       String?  @db.ObjectId
+  hotel         Hotel?   @relation(fields: [hotelId], references: [id])
+  vehicleId     String?  @db.ObjectId
+  vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
+  guideId       String?  @db.ObjectId
+  guide         Guide?   @relation(fields: [guideId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([name])
+  @@index([popular])
+}

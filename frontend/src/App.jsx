@@ -57,7 +57,12 @@ const AdminVehicles = lazy(() => import('./pages/Admin/AdminVehicles'));
 const AdminGuides = lazy(() => import('./pages/Admin/AdminGuides'));
 const AdminBookings = lazy(() => import('./pages/Admin/AdminBookings'));
 const ReportsAnalytics = lazy(() => import('./pages/Admin/ReportsAnalytics'));
+const AdminUsers = lazy(() => import('./pages/Admin/AdminUsers'));
 const CompanyCommission = lazy(() => import('./pages/Admin/CompanyCommission'));
+const AdminFeedbacks = lazy(() => import('./pages/Admin/AdminFeedbacks'));
+const MyReviews = lazy(() => import('./pages/MyReviews'));
+const AdminTourPackages = lazy(() => import('./pages/Admin/AdminTourPackages'));
+
 
 function App() {
   return (
@@ -88,6 +93,8 @@ function App() {
                   <Route path="/booking/:id" element={<PrivateRoute><AdminRedirect><BookingForm /></AdminRedirect></PrivateRoute>} />
                   <Route path="/my-bookings" element={<PrivateRoute><AdminRedirect><MyBookings /></AdminRedirect></PrivateRoute>} />
                   <Route path="/payment" element={<PrivateRoute><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
+                  <Route path="/my-reviews" element={<PrivateRoute><MyReviews /></PrivateRoute>} />
+
 
                   {/* Admin routes */}
                   <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>}>
@@ -97,6 +104,10 @@ function App() {
                     <Route path="bookings" element={<AdminBookings />} />
                     <Route path="reports" element={<ReportsAnalytics />} />
                     <Route path="company-commission" element={<CompanyCommission />} />
+                    <Route path="feedbacks" element={<AdminFeedbacks />} />
+                    <Route path="users" element={<AdminUsers />} />
+                    <Route path="tour-packages" element={<AdminTourPackages />} />
+
                   </Route>
                 </Routes>
               </Suspense>

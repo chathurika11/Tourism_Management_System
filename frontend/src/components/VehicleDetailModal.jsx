@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Users, Fuel, Calendar, Shield, Star, MapPin } from 'lucide-react';
+import { X, Users, Fuel, Calendar, Shield, Clock, MapPin, Star, DollarSign, CheckCircle, Car, Wifi } from 'lucide-react';
 import FeedbackModal from './FeedbackModal';
 import { useTour } from '../context/TourContext';
+import { getImageUrl } from '../services/api';
 
 const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -12,96 +13,69 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative animate-fadeIn">
-          <button onClick={onClose} className="absolute right-4 top-4 z-10 bg-white rounded-full p-1 shadow-md">
-            <X size={24} className="text-gray-500" />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto animate-fadeIn">
+        <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
+          <button onClick={onClose} className="absolute right-5 top-5 z-10 bg-white/90 backdrop-blur rounded-full p-2 shadow-md hover:bg-gray-100 transition">
+            <X size={22} className="text-gray-600" />
           </button>
-          
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Image Section */}
-            <div className="h-64 md:h-full">
-              <img src={vehicle.image} alt={vehicle.model} className="w-full h-full object-cover rounded-l-2xl" />
+            <div className="h-80 md:h-full rounded-t-3xl md:rounded-l-3xl overflow-hidden">
+              <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-full object-cover" />
             </div>
-            
-            {/* Details Section */}
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-primary mb-2">{vehicle.model}</h2>
-              <p className="text-secondary font-semibold mb-4">{vehicle.type}</p>
-              
+            <div className="p-6 md:p-8">
+              <h2 className="text-3xl font-bold text-primary mb-1">{vehicle.model}</h2>
+              <p className="text-secondary font-semibold mb-4 flex items-center gap-2"><Car size={18} /> {vehicle.type}</p>
               <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Users size={20} className="text-primary" />
-                  <span>{vehicle.passengers} Passengers</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Fuel size={20} className="text-primary" />
-                  <span>{vehicle.fuelType || 'Petrol'} • {vehicle.mileage || '18-22 km/l'}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Calendar size={20} className="text-primary" />
-                  <span>Model Year: {vehicle.year || '2023-2025'}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Shield size={20} className="text-primary" />
-                  <span>Insurance Included • 24/7 Support</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <MapPin size={20} className="text-primary" />
-                  <span>Pickup Locations: Colombo, Kandy, Galle</span>
+                <div className="flex items-center gap-3 text-gray-700"><Users size={20} className="text-primary" /> {vehicle.passengers} Passengers</div>
+                <div className="flex items-center gap-3 text-gray-700"><Fuel size={20} className="text-primary" /> {vehicle.fuelType} • {vehicle.fuelEfficiency || 'N/A'}</div>
+                <div className="flex items-center gap-3 text-gray-700"><Calendar size={20} className="text-primary" /> Model Year: {vehicle.year}</div>
+                <div className="flex items-center gap-3 text-gray-700"><Shield size={20} className="text-primary" /> Insurance {vehicle.insuranceIncluded ? 'Included ✓' : 'Not Included'}</div>
+                <div className="flex items-center gap-3 text-gray-700"><Clock size={20} className="text-primary" /> Support: {vehicle.supportHours || '24/7'}</div>
+                <div className="flex items-start gap-3 text-gray-700">
+                  <MapPin size={20} className="text-primary mt-0.5" /> Pickup: 
+                  <span className="flex-1">{(vehicle.pickupLocations || []).join(', ')}</span>
                 </div>
               </div>
-              
-              <div className="border-t pt-4 mb-4">
-                <h3 className="font-bold text-lg mb-2">What's Included</h3>
-                <ul className="list-disc list-inside text-gray-600 space-y-1">
-                  <li>Unlimited kilometers</li>
-                  <li>Full insurance coverage</li>
-                  <li>24/7 roadside assistance</li>
-                  <li>Free cancellation up to 24 hours</li>
-                  <li>GPS navigation system</li>
-                </ul>
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              {(vehicle.includedFeatures && vehicle.includedFeatures.length > 0) && (
+                <div className="border-t border-gray-100 pt-4 mb-4">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><CheckCircle size={18} className="text-green-600" /> What's Included</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {vehicle.includedFeatures.map((feature, i) => (
+                      <span key={i} className="bg-green-50 text-green-700 px-2 py-1 rounded-full text-xs">{feature}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-2xl mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Price per day</span>
-                  <span className="text-2xl font-bold text-primary">Rs {vehicle.pricePerDay.toLocaleString()}</span>
+                  <span className="text-3xl font-bold text-primary">Rs {vehicle.pricePerDay.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
                   <span>Security Deposit</span>
-                  <span>Rs 10,000 (refundable)</span>
+                  <span>Rs {vehicle.securityDeposit?.toLocaleString() || 0} {vehicle.depositRefundable ? '(refundable)' : '(non-refundable)'}</span>
                 </div>
               </div>
-              
               <div className="flex gap-3">
                 <button onClick={onClose} className="btn-outline flex-1">Close</button>
-                <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">
-                  Write a Review
-                </button>
+                <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>
               </div>
             </div>
           </div>
-          
-          {/* Feedback Section */}
-          <div className="border-t p-6 bg-gray-50">
+          <div className="border-t border-gray-100 p-6 bg-gray-50">
             <h3 className="text-xl font-bold text-primary mb-4">Customer Reviews</h3>
             {feedbacks.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No reviews yet. Be the first to review!</p>
+              <p className="text-gray-500 text-center py-4">No reviews yet.</p>
             ) : (
-              <div className="space-y-4 max-h-64 overflow-y-auto">
-                {feedbacks.map(feedback => (
-                  <div key={feedback.id} className="bg-white p-4 rounded-lg shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-semibold text-primary">{feedback.userName}</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className={i < feedback.rating ? 'text-cta fill-current' : 'text-gray-300'} />
-                        ))}
-                      </div>
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                {feedbacks.map(fb => (
+                  <div key={fb.id} className="bg-white p-4 rounded-xl shadow-sm">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-primary">{fb.userName}</span>
+                      <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} size={14} className={i < fb.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} />)}</div>
                     </div>
-                    <p className="text-gray-600 text-sm mb-2">{feedback.comment}</p>
-                    <p className="text-xs text-gray-400">{feedback.date}</p>
+                    <p className="text-gray-600 text-sm mt-1">{fb.comment}</p>
+                    <p className="text-xs text-gray-400 mt-2">{fb.date}</p>
                   </div>
                 ))}
               </div>
@@ -109,15 +83,7 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
           </div>
         </div>
       </div>
-      
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        onSubmit={onAddFeedback}
-        itemName={vehicle.model}
-        itemId={vehicle.id}
-        type="vehicle"
-      />
+      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} onSubmit={onAddFeedback} itemName={vehicle.model} itemId={vehicle.id} type="vehicle" />
     </>
   );
 };

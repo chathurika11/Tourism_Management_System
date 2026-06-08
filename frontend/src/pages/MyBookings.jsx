@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, FileText, Download, Edit2, Trash2, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import API from '../services/api';
 
 const MyBookings = () => {
   const { user } = useAuth();
@@ -11,47 +12,46 @@ const MyBookings = () => {
   const [showModal, setShowModal] = useState(false);
   const [editData, setEditData] = useState({});
 
-  const loadBookings = useCallback(() => {
-    const all = JSON.parse(localStorage.getItem('bookings') || '[]');
-    const userBookings = all.filter(b => b.userEmail === user?.email || !b.userEmail);
-    setBookings(userBookings);
-  }, [user?.email]);
+  const loadBookings = async () => {
+    try {
+      const res = await API.get('/bookings');
+      setBookings(res.data);
+    } catch (err) {
+      toast.error('Failed to load bookings');
+    }
+  };
 
   useEffect(() => {
     loadBookings();
-    const handleStorageChange = () => loadBookings();
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [loadBookings]);
+  }, []);
 
-  const saveBookings = (updated) => {
-    const all = JSON.parse(localStorage.getItem('bookings') || '[]');
-    const other = all.filter(b => b.userEmail !== user?.email && b.userEmail);
-    localStorage.setItem('bookings', JSON.stringify([...other, ...updated]));
-    loadBookings();
-    window.dispatchEvent(new Event('storage'));
+  const updateBooking = async (id) => {
+    try {
+      await API.put(`/bookings/${id}`, editData);
+      toast.success('Booking updated');
+      setShowModal(false);
+      setEditData({});
+      setSelected(null);
+      loadBookings();
+    } catch (err) {
+      toast.error('Update failed');
+    }
   };
 
-  const updateBooking = (id) => {
-    const updated = bookings.map(b => b.id === id ? { ...b, ...editData } : b);
-    saveBookings(updated);
-    toast.success('Booking updated');
-    setShowModal(false);
-    setEditData({});
-    setSelected(null);
-  };
-
-  const deleteBooking = (id) => {
+  const deleteBooking = async (id) => {
     if (window.confirm('Cancel this booking?')) {
-      const filtered = bookings.filter(b => b.id !== id);
-      saveBookings(filtered);
-      toast.success('Booking cancelled');
+      try {
+        await API.delete(`/bookings/${id}`);
+        toast.success('Booking cancelled');
+        loadBookings();
+      } catch (err) {
+        toast.error('Cancellation failed');
+      }
     }
   };
 
   const generateInvoiceHTML = (booking) => {
     const formatPrice = (price) => `Rs ${(price || 0).toLocaleString()}`;
-
     let placesList = '';
     if (booking.places && booking.places.length) {
       placesList = `<ul>${booking.places.map(p => `<li>${p}</li>`).join('')}</ul>`;
@@ -63,7 +63,6 @@ const MyBookings = () => {
     } else {
       placesList = '<p>Not specified</p>';
     }
-
     return `
       <!DOCTYPE html>
       <html>
@@ -91,7 +90,6 @@ const MyBookings = () => {
           <div>Experience Sri Lanka Beautifully</div>
         </div>
         <div class="invoice-title">TAX INVOICE</div>
-
         <div class="details">
           <table>
             <tr><td width="120"><strong>Invoice No:</strong></td><td>INV-${booking.id}-${Date.now()}</td></tr>
@@ -101,7 +99,6 @@ const MyBookings = () => {
             <tr><td><strong>Phone:</strong></td><td>${booking.customerPhone || user?.phone || 'N/A'}</td></tr>
           </table>
         </div>
-
         <div class="section">
           <div class="section-title">📅 Travel Details</div>
           <div class="item-row"><span>Destination(s):</span><span>${booking.destination || (booking.destinations ? 'Multiple districts' : 'N/A')}</span></div>
@@ -112,7 +109,6 @@ const MyBookings = () => {
           <div class="item-row"><span>Number of Days:</span><span>${booking.numberOfDays || booking.days || 1}</span></div>
           <div class="item-row"><span>Number of Passengers:</span><span>${booking.passengers || 1}</span></div>
         </div>
-
         <div class="section">
           <div class="section-title">🏨 Accommodation</div>
           ${booking.hotelName ? `
@@ -121,7 +117,6 @@ const MyBookings = () => {
             <div class="item-row"><span>Total Hotel Cost:</span><span>${formatPrice(booking.hotelTotal)}</span></div>
           ` : '<p>No hotel selected</p>'}
         </div>
-
         <div class="section">
           <div class="section-title">🚗 Vehicle</div>
           ${booking.vehicleName ? `
@@ -130,7 +125,6 @@ const MyBookings = () => {
             <div class="item-row"><span>Total Vehicle Cost:</span><span>${formatPrice(booking.vehicleTotal)}</span></div>
           ` : '<p>No vehicle selected</p>'}
         </div>
-
         <div class="section">
           <div class="section-title">👨‍🏫 Tour Guide</div>
           ${booking.guideName ? `
@@ -139,14 +133,8 @@ const MyBookings = () => {
             <div class="item-row"><span>Total Guide Cost:</span><span>${formatPrice(booking.guideTotal)}</span></div>
           ` : '<p>No guide selected</p>'}
         </div>
-
-        <div class="total">
-          Grand Total: ${formatPrice(booking.totalAmount)}
-        </div>
-
-        <div class="footer">
-          <p>Thank you for choosing SerendiGo!<br/>For support: +94 11 234 5678 | support@serendigo.com</p>
-        </div>
+        <div class="total">Grand Total: ${formatPrice(booking.totalAmount)}</div>
+        <div class="footer"><p>Thank you for choosing SerendiGo!<br/>For support: +94 11 234 5678 | support@serendigo.com</p></div>
       </body>
       </html>
     `;
@@ -202,14 +190,12 @@ const MyBookings = () => {
                   {b.status}
                 </span>
               </div>
-
               <div className="mt-3 text-sm text-gray-600 border-t pt-3">
                 {b.hotelName && <span className="mr-3">🏨 {b.hotelName}</span>}
                 {b.vehicleName && <span className="mr-3">🚗 {b.vehicleName}</span>}
                 {b.guideName && <span className="mr-3">👨‍🏫 {b.guideName}</span>}
                 <span>👥 {b.passengers || 1} passengers</span>
               </div>
-
               <div className="mt-4 flex flex-wrap gap-3">
                 <button onClick={() => openInvoiceModal(b)} className="text-blue-600 flex items-center gap-1"><FileText size={16}/> Invoice</button>
                 {b.status === 'confirmed' && (
@@ -227,7 +213,6 @@ const MyBookings = () => {
           ))}
         </div>
       )}
-
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">

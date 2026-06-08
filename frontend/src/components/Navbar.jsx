@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User } from 'lucide-react';
+import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -26,14 +26,12 @@ const Navbar = () => {
     setIsOpen(false);
   };
 
-  // Helper to get active class
   const getActiveClass = (path) => {
     return location.pathname === path
       ? 'text-cta font-semibold border-b-2 border-cta pb-1'
       : 'hover:text-cta';
   };
 
-  // Public links (visible only to non‑admin users)
   const publicLinks = [
     { path: '/', name: 'Home', icon: Home },
     { path: '/about', name: 'About', icon: Info },
@@ -80,12 +78,20 @@ const Navbar = () => {
             {user ? (
               <>
                 {!isAdmin && (
-                  <button
-                    onClick={() => handleNavigation('/my-bookings')}
-                    className={`flex items-center gap-1 transition ${getActiveClass('/my-bookings')}`}
-                  >
-                    <User size={18} /> My Bookings
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleNavigation('/my-bookings')}
+                      className={`flex items-center gap-1 transition ${getActiveClass('/my-bookings')}`}
+                    >
+                      <User size={18} /> My Bookings
+                    </button>
+                    <button
+                      onClick={() => handleNavigation('/my-reviews')}
+                      className={`flex items-center gap-1 transition ${getActiveClass('/my-reviews')}`}
+                    >
+                      <MessageSquare size={18} /> My Reviews
+                    </button>
+                  </>
                 )}
                 <button onClick={handleLogout} className="flex items-center gap-1 hover:text-cta transition">
                   <LogOut size={18} /> Logout
@@ -133,12 +139,20 @@ const Navbar = () => {
             {user ? (
               <>
                 {!isAdmin && (
-                  <button
-                    onClick={() => handleNavigation('/my-bookings')}
-                    className={`block w-full text-left transition ${location.pathname === '/my-bookings' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
-                  >
-                    My Bookings
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleNavigation('/my-bookings')}
+                      className={`block w-full text-left transition ${location.pathname === '/my-bookings' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+                    >
+                      My Bookings
+                    </button>
+                    <button
+                      onClick={() => handleNavigation('/my-reviews')}
+                      className={`block w-full text-left transition ${location.pathname === '/my-reviews' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+                    >
+                      My Reviews
+                    </button>
+                  </>
                 )}
                 <button onClick={() => { handleLogout(); setIsOpen(false); }} className="block w-full text-left hover:text-cta">
                   Logout

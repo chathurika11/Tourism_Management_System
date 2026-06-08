@@ -1,114 +1,138 @@
 import React, { useState } from 'react';
-import { X, Globe, Star, Award, MapPin, Calendar } from 'lucide-react';
-import FeedbackModal from './FeedbackModal';
-import { useTour } from '../context/TourContext';
+import { X, MapPin, Star, Calendar, Globe, Award, DollarSign, Sparkles, Phone, Mail, MessageCircle, ThumbsUp } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const GuideDetailModal = ({ isOpen, onClose, guide, onAddFeedback }) => {
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const { getGuideFeedbacks } = useTour();
-  const feedbacks = getGuideFeedbacks(guide?.id);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen || !guide) return null;
 
+  const handleSubmitReview = async () => {
+    if (rating === 0) {
+      toast.error('Please select a rating');
+      return;
+    }
+    if (!reviewText.trim()) {
+      toast.error('Please write a review');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onAddFeedback(guide.id, { rating, comment: reviewText });
+      toast.success('Thank you for your review!');
+      setRating(0);
+      setReviewText('');
+      onClose(); // optional: close modal after review
+    } catch (error) {
+      toast.error('Failed to submit review');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
-          <button onClick={onClose} className="absolute right-4 top-4 z-10 bg-white rounded-full p-1 shadow-md">
-            <X size={24} className="text-gray-500" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="relative">
+          <img src={guide.image} alt={guide.name} className="w-full h-64 object-cover rounded-t-2xl" />
+          <button onClick={onClose} className="absolute top-4 right-4 bg-white/90 p-2 rounded-full hover:bg-white transition">
+            <X size={20} />
           </button>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3">
-            {/* Profile Section */}
-            <div className="bg-primary text-white p-6 text-center">
-              <img src={guide.image} alt={guide.name} className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-cta" />
-              <h2 className="text-xl font-bold">{guide.name}</h2>
-              <p className="text-accent text-sm mt-1">{guide.specialty}</p>
-              <div className="flex justify-center items-center gap-1 mt-2">
-                <Star size={16} className="text-cta fill-current" />
-                <span>{guide.rating}</span>
-                <span className="text-xs ml-1">({guide.reviews} reviews)</span>
-              </div>
+          {guide.popular && (
+            <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">🔥 Popular</div>
+          )}
+        </div>
+        <div className="p-6">
+          <h2 className="text-3xl font-bold text-primary mb-2">{guide.name}</h2>
+          <div className="flex items-center gap-4 text-gray-600 mb-4">
+            <span className="flex items-center gap-1"><MapPin size={16} /> {guide.location || 'Sri Lanka'}</span>
+            <span className="flex items-center gap-1"><Star size={16} className="text-yellow-500" /> {guide.rating} / 5</span>
+            <span className="flex items-center gap-1"><Award size={16} className="text-secondary" /> {guide.specialty}</span>
+          </div>
+
+          {/* Guide details grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gray-50 p-3 rounded-xl text-center">
+              <Globe size={20} className="mx-auto text-primary mb-1" />
+              <p className="text-sm text-gray-500">Languages</p>
+              <p className="font-semibold">{guide.language || 'English'}</p>
             </div>
-            
-            {/* Details Section */}
-            <div className="md:col-span-2 p-6">
-              <h3 className="text-xl font-bold text-primary mb-4">About {guide.name}</h3>
-              
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-3 text-gray-600">
-                  <MapPin size={20} className="text-primary" />
-                  <span>Areas: {guide.location}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Globe size={20} className="text-primary" />
-                  <span>Languages: {guide.language}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Calendar size={20} className="text-primary" />
-                  <span>{guide.experience || '10+ years experience'}</span>
-                </div>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <Award size={20} className="text-primary" />
-                  <span>{guide.certification || 'Certified Tourist Guide'}</span>
-                </div>
-              </div>
-              
-              <div className="border-t pt-4 mb-4">
-                <h3 className="font-bold text-lg mb-2">Tour Highlights</h3>
-                <ul className="list-disc list-inside text-gray-600 space-y-1">
-                  <li>Customized itineraries</li>
-                  <li>Insider knowledge of local culture</li>
-                  <li>Flexible scheduling</li>
-                  <li>Photography assistance</li>
-                </ul>
-              </div>
-              
-              <div className="flex gap-3">
-                <button onClick={onClose} className="btn-outline flex-1">Close</button>
-                <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">
-                  Write a Review
-                </button>
-              </div>
+            <div className="bg-gray-50 p-3 rounded-xl text-center">
+              <Calendar size={20} className="mx-auto text-primary mb-1" />
+              <p className="text-sm text-gray-500">Experience</p>
+              <p className="font-semibold">{guide.experience || 'N/A'}</p>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-xl text-center">
+              <DollarSign size={20} className="mx-auto text-primary mb-1" />
+              <p className="text-sm text-gray-500">Rate</p>
+              <p className="font-semibold text-primary">Rs {guide.pricePerDay?.toLocaleString()}/day</p>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-xl text-center">
+              <Sparkles size={20} className="mx-auto text-primary mb-1" />
+              <p className="text-sm text-gray-500">Tour Type</p>
+              <p className="font-semibold">{guide.tourType || 'Private'}</p>
             </div>
           </div>
-          
-          {/* Feedback Section */}
-          <div className="border-t p-6 bg-gray-50">
-            <h3 className="text-xl font-bold text-primary mb-4">Customer Reviews</h3>
-            {feedbacks.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No reviews yet. Be the first to review!</p>
-            ) : (
-              <div className="space-y-4 max-h-64 overflow-y-auto">
-                {feedbacks.map(feedback => (
-                  <div key={feedback.id} className="bg-white p-4 rounded-lg shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-semibold text-primary">{feedback.userName}</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className={i < feedback.rating ? 'text-cta fill-current' : 'text-gray-300'} />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-gray-600 text-sm mb-2">{feedback.comment}</p>
-                    <p className="text-xs text-gray-400">{feedback.date}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+
+          <div className="mb-6">
+            <h3 className="font-bold text-lg mb-2">About {guide.name}</h3>
+            <p className="text-gray-600">{guide.bio || 'Experienced local guide passionate about sharing Sri Lankan culture and history.'}</p>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="font-bold text-lg mb-2">Contact Information</h3>
+            <div className="space-y-2">
+              <p className="flex items-center gap-2"><Phone size={16} className="text-primary" /> {guide.phone || '+94 XX XXX XXXX'}</p>
+              <p className="flex items-center gap-2"><Mail size={16} className="text-primary" /> {guide.email || 'contact@example.com'}</p>
+              <p className="flex items-center gap-2"><MessageCircle size={16} className="text-primary" /> WhatsApp available</p>
+            </div>
+          </div>
+
+          {/* Write a Review Section */}
+          <div className="border-t border-gray-200 pt-6 mt-4">
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><ThumbsUp size={18} /> Write a Review</h3>
+            <div className="flex items-center gap-2 mb-3">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="focus:outline-none"
+                >
+                  <Star
+                    size={24}
+                    className={`${(hoverRating || rating) >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                  />
+                </button>
+              ))}
+              <span className="text-sm text-gray-500 ml-2">({rating} / 5)</span>
+            </div>
+            <textarea
+              rows="3"
+              className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="Share your experience with this guide..."
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+            />
+            <div className="flex justify-end gap-3 mt-3">
+              <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+              <button
+                onClick={handleSubmitReview}
+                disabled={submitting}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-secondary disabled:opacity-50"
+              >
+                {submitting ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        onSubmit={onAddFeedback}
-        itemName={guide.name}
-        itemId={guide.id}
-        type="guide"
-      />
-    </>
+    </div>
   );
 };
 

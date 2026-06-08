@@ -1,179 +1,250 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, Smartphone, Building, Shield, Loader, User, MapPin } from 'lucide-react';
+import { CreditCard, Lock, Calendar, User, Shield, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const Payment = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [bookingData, setBookingData] = useState(null);
-  const [cardDetails, setCardDetails] = useState({
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
-    name: '',
-    address: '',
-    city: '',
-    postalCode: '',
-    country: 'Sri Lanka'
-  });
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
 
+  // Retrieve booking from sessionStorage (set during booking creation)
   useEffect(() => {
-    const pending = localStorage.getItem('pendingBooking');
-    if (pending) {
-      setBookingData(JSON.parse(pending));
+    const storedBooking = sessionStorage.getItem('pendingBooking');
+    if (storedBooking) {
+      setBooking(JSON.parse(storedBooking));
     } else {
-      toast.error('No booking to pay');
+      toast.error('No booking found. Please start a new booking.');
       navigate('/');
     }
   }, [navigate]);
 
-  const validate = () => {
-    if (paymentMethod === 'card') {
-      if (cardDetails.cardNumber.replace(/\s/g, '').length !== 16) { toast.error('Invalid card number (16 digits)'); return false; }
-      if (cardDetails.cvv.length < 3) { toast.error('Invalid CVV'); return false; }
-      if (!cardDetails.name) { toast.error('Cardholder name required'); return false; }
-      if (!cardDetails.address) { toast.error('Billing address required'); return false; }
+  const formatCardNumber = (value) => {
+    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+    const matches = v.match(/\d{4,16}/g);
+    const match = (matches && matches[0]) || '';
+    const parts = [];
+    for (let i = 0; i < match.length; i += 4) {
+      parts.push(match.substring(i, i + 4));
     }
-    return true;
-  };
-
-  const sendSMS = (booking) => {
-    let placesMsg = '';
-    if (booking.destinations && booking.destinations.length) {
-      placesMsg = booking.destinations.map(d => `${d.district}: ${d.places.join(', ')}`).join(' | ');
-    } else if (booking.places) {
-      placesMsg = booking.places.join(', ');
+    if (parts.length) {
+      return parts.join(' ');
     } else {
-      placesMsg = booking.packageName || 'Custom tour';
+      return value;
     }
-    const message = `✅ CONFIRMATION: ${user?.name}, booking confirmed!\n📍 ${placesMsg}\n📅 ${booking.startDate} to ${booking.endDate}\n💰 Rs ${booking.totalAmount?.toLocaleString()}\nThank you for choosing SerendiGo!`;
-    console.log('📱 SMS to', user?.phone || 'N/A', message);
-    toast.success(`Confirmation sent to ${user?.phone || 'your phone'}`);
   };
 
-  const handlePayment = () => {
-    if (!validate()) return;
+  const formatExpiry = (value) => {
+    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+    if (v.length >= 2) {
+      return v.slice(0, 2) + (v.length > 2 ? '/' + v.slice(2, 4) : '');
+    }
+    return v;
+  };
+
+  const handleCardNumberChange = (e) => {
+    const formatted = formatCardNumber(e.target.value);
+    setCardNumber(formatted);
+  };
+
+  const handleExpiryChange = (e) => {
+    const formatted = formatExpiry(e.target.value);
+    setCardExpiry(formatted);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!booking) return;
+    
+    // Basic validation
+    const rawCardNumber = cardNumber.replace(/\s/g, '');
+    if (rawCardNumber.length < 15 || rawCardNumber.length > 19) {
+      toast.error('Invalid card number');
+      return;
+    }
+    if (!cardExpiry.match(/^\d{2}\/\d{2}$/)) {
+      toast.error('Expiry must be MM/YY');
+      return;
+    }
+    if (!cardCvv.match(/^\d{3,4}$/)) {
+      toast.error('CVV must be 3 or 4 digits');
+      return;
+    }
+    if (!cardHolder.trim()) {
+      toast.error('Cardholder name is required');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      const confirmed = { 
-        ...bookingData, 
-        status: 'confirmed', 
-        paymentStatus: 'paid', 
-        paymentDate: new Date().toISOString(),
-        billingAddress: {
-          address: cardDetails.address,
-          city: cardDetails.city,
-          postalCode: cardDetails.postalCode,
-          country: cardDetails.country
-        }
-      };
-      const existing = JSON.parse(localStorage.getItem('bookings') || '[]');
-      existing.push(confirmed);
-      localStorage.setItem('bookings', JSON.stringify(existing));
-      localStorage.removeItem('pendingBooking');
-      // Dispatch storage event so other tabs/components refresh
-      window.dispatchEvent(new Event('storage'));
-      sendSMS(confirmed);
-      toast.success('Payment successful! Booking confirmed.');
+    try {
+      // Call backend payment endpoint
+      const response = await API.post('/payments/process', {
+        bookingId: booking.id,
+        cardNumber: rawCardNumber,
+        cardExpiry,
+        cardCvv,
+        cardHolder: cardHolder.trim(),
+      });
+      
+      if (response.data.success) {
+        toast.success('Payment successful! Booking confirmed.');
+        // Clear session storage and navigate to my bookings
+        sessionStorage.removeItem('pendingBooking');
+        navigate('/my-bookings');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Payment failed. Please try again.');
+    } finally {
       setLoading(false);
-      navigate('/my-bookings');
-    }, 2000);
+    }
   };
 
-  if (!bookingData) return <div className="text-center py-20">Loading booking details...</div>;
+  if (!booking) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-cream py-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
       <div className="container mx-auto px-4 max-w-4xl">
-        <h1 className="text-3xl font-bold text-primary text-center mb-8">Complete Payment</h1>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6">
-            <div className="flex gap-4 mb-6 border-b pb-4">
-              {['card','mobile','bank'].map(m => (
-                <button key={m} onClick={() => setPaymentMethod(m)} className={`px-4 py-2 rounded-lg ${paymentMethod===m ? 'bg-primary text-white' : 'bg-gray-100'}`}>
-                  {m==='card' && <CreditCard size={18} />} {m==='mobile' && <Smartphone size={18} />} {m==='bank' && <Building size={18} />} {m.toUpperCase()}
-                </button>
-              ))}
+          {/* Order Summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-24">
+              <h2 className="text-xl font-bold text-primary mb-4">Order Summary</h2>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Package:</span>
+                  <span className="font-medium">{booking.type || booking.packageName || 'Custom Tour'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Dates:</span>
+                  <span>{booking.startDate} – {booking.endDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Passengers:</span>
+                  <span>{booking.passengers || 1}</span>
+                </div>
+                <div className="border-t pt-3 mt-3">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total</span>
+                    <span className="text-primary">Rs {booking.totalAmount?.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 bg-blue-50 p-3 rounded-lg flex items-center gap-2 text-xs text-blue-700">
+                <Shield size={14} /> Your payment is secure and encrypted.
+              </div>
             </div>
-            
-            {paymentMethod === 'card' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-gray-700 mb-1">Card Number</label>
-                  <input type="text" placeholder="1234 5678 9012 3456" className="input-field" value={cardDetails.cardNumber} onChange={e => setCardDetails({...cardDetails, cardNumber: e.target.value.replace(/\D/g,'').slice(0,16)})} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-700 mb-1">Expiry (MM/YY)</label>
-                    <input type="text" placeholder="MM/YY" className="input-field" value={cardDetails.expiry} onChange={e => setCardDetails({...cardDetails, expiry: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 mb-1">CVV</label>
-                    <input type="password" placeholder="123" className="input-field" maxLength="4" value={cardDetails.cvv} onChange={e => setCardDetails({...cardDetails, cvv: e.target.value})} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-gray-700 mb-1">Cardholder Name</label>
-                  <input type="text" placeholder="Name on card" className="input-field" value={cardDetails.name} onChange={e => setCardDetails({...cardDetails, name: e.target.value})} />
-                </div>
-                <div className="border-t pt-4 mt-2">
-                  <h3 className="font-semibold mb-3">Billing Address</h3>
-                  <div className="space-y-3">
-                    <input type="text" placeholder="Street Address" className="input-field" value={cardDetails.address} onChange={e => setCardDetails({...cardDetails, address: e.target.value})} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input type="text" placeholder="City" className="input-field" value={cardDetails.city} onChange={e => setCardDetails({...cardDetails, city: e.target.value})} />
-                      <input type="text" placeholder="Postal Code" className="input-field" value={cardDetails.postalCode} onChange={e => setCardDetails({...cardDetails, postalCode: e.target.value})} />
-                    </div>
-                    <input type="text" placeholder="Country" className="input-field" value={cardDetails.country} onChange={e => setCardDetails({...cardDetails, country: e.target.value})} />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {paymentMethod === 'mobile' && (
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="font-semibold mb-2">Mobile Payment</p>
-                <input type="tel" className="input-field" placeholder="+94 XX XXX XXXX" />
-                <p className="text-xs text-gray-500 mt-2">You will receive a confirmation SMS with payment link.</p>
-              </div>
-            )}
-            
-            {paymentMethod === 'bank' && (
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <p className="font-semibold">Bank Transfer Details</p>
-                <p className="text-sm">Bank: SerendiGo Commercial Bank<br/>Account: 1234-5678-9012-3456<br/>Branch: Colombo Main<br/>Reference: Use your Booking ID</p>
-                <input type="text" placeholder="Transaction Reference ID" className="input-field mt-3" />
-              </div>
-            )}
-            
-            <button onClick={handlePayment} disabled={loading} className="btn-primary w-full mt-6 py-3 flex justify-center gap-2">
-              {loading ? <Loader className="animate-spin" /> : <Shield />} {loading ? 'Processing...' : `Pay Rs ${bookingData.totalAmount?.toLocaleString() || 0}`}
-            </button>
           </div>
-          
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold mb-4">Booking Summary</h2>
-            <p><strong>Type:</strong> {bookingData.type || 'Custom Tour'}</p>
-            <p><strong>Dates:</strong> {bookingData.startDate} – {bookingData.endDate}</p>
-            <p><strong>Days:</strong> {bookingData.numberOfDays}</p>
-            <p><strong>Passengers:</strong> {bookingData.passengers}</p>
-            {bookingData.destinations && (
-              <div className="mt-2">
-                <p className="font-semibold">Destinations:</p>
-                <ul className="text-sm list-disc pl-4">
-                  {bookingData.destinations.map((d, i) => (
-                    <li key={i}>{d.district} – {d.places.length} places</li>
-                  ))}
-                </ul>
+
+          {/* Payment Form */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+              <div className="flex items-center gap-2 mb-6">
+                <CreditCard size={24} className="text-primary" />
+                <h1 className="text-2xl font-bold text-primary">Payment Details</h1>
               </div>
-            )}
-            <div className="border-t mt-4 pt-4">
-              <p className="text-sm text-gray-600">Total amount:</p>
-              <p className="text-2xl font-bold text-primary">Rs {bookingData.totalAmount?.toLocaleString() || 0}</p>
+              <form onSubmit={handleSubmit}>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-gray-700 mb-1">Card Number *</label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={cardNumber}
+                        onChange={handleCardNumberChange}
+                        placeholder="1234 5678 9012 3456"
+                        maxLength="19"
+                        className="input-field pl-10"
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">We only store the last 4 digits</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-gray-700 mb-1">Expiry Date *</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                          type="text"
+                          value={cardExpiry}
+                          onChange={handleExpiryChange}
+                          placeholder="MM/YY"
+                          maxLength="5"
+                          className="input-field pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 mb-1">CVV *</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                          type="password"
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="123"
+                          maxLength="4"
+                          className="input-field pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 mb-1">Cardholder Name *</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value)}
+                        placeholder="Name as on card"
+                        className="input-field pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg flex items-center gap-3 text-sm">
+                    <Lock size={16} className="text-green-600" />
+                    <span className="text-gray-600">Your card details are encrypted and never stored fully.</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Pay Rs {booking.totalAmount?.toLocaleString()}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

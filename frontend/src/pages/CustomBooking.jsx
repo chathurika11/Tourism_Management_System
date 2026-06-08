@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ChevronRight, ChevronDown } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { useMap } from 'react-leaflet';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
@@ -11,8 +11,16 @@ import {
   vehicles, 
   getHotelsByDistrictAndBudget, getHotelsByDistrict 
 } from '../data/tourismData';
+import API from '../services/api';
 
-// Fix Leaflet icons
+// Lazy load leaflet components (only when a map is expanded)
+const MapContainer = lazy(() => import('react-leaflet').then(module => ({ default: module.MapContainer })));
+const TileLayer = lazy(() => import('react-leaflet').then(module => ({ default: module.TileLayer })));
+const Marker = lazy(() => import('react-leaflet').then(module => ({ default: module.Marker })));
+const Popup = lazy(() => import('react-leaflet').then(module => ({ default: module.Popup })));
+const Polyline = lazy(() => import('react-leaflet').then(module => ({ default: module.Polyline })));
+
+// Fix Leaflet icons (runs once, outside component)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -20,6 +28,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// FitBounds component – uses useMap
 const FitBounds = ({ positions }) => {
   const map = useMap();
   React.useEffect(() => {
@@ -28,6 +37,7 @@ const FitBounds = ({ positions }) => {
   return null;
 };
 
+// Optimised route calculation (pure function)
 const calculateOptimalRoute = (startPoint, places) => {
   if (!places.length) return [];
   const points = [...places];
@@ -68,7 +78,6 @@ const CustomBooking = () => {
   const [endDate, setEndDate] = useState('');
   const [passengers, setPassengers] = useState(1);
 
-  // Destinations without vehicle selection initially
   const [destinations, setDestinations] = useState([
     { id: 1, district: '', places: [], needGuide: false, guideId: '', needHotel: false, hotelBudget: '', hotelId: '', needVehicle: false, vehicleId: '' }
   ]);
@@ -117,25 +126,22 @@ const CustomBooking = () => {
     'Pigeon Island': [8.4670, 81.2150], 'Uppuveli Beach': [8.4500, 81.1800],
   };
 
-  const numberOfDays = (() => {
+  const numberOfDays = useMemo(() => {
     if (!startDate || !endDate) return 1;
     const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000*60*60*24));
     return diff > 0 ? diff : 1;
-  })();
+  }, [startDate, endDate]);
 
   const getAvailableGuides = (district) => getGuidesByDistrict(district);
-  
   const getAvailableVehiclesForDestination = (dest, pax) => {
     const requiredSeats = pax + (dest.needGuide ? 1 : 0);
     return vehicles.filter(v => v.passengers >= requiredSeats).sort((a,b) => a.pricePerDay - b.pricePerDay);
   };
-  
   const getAvailableHotels = (district, budget) => {
     if (!budget) return getHotelsByDistrict(district);
     return getHotelsByDistrictAndBudget(district, budget);
   };
 
-  // Show toast when no hotels match budget
   useEffect(() => {
     destinations.forEach(dest => {
       if (dest.needHotel && dest.hotelBudget && getAvailableHotels(dest.district, dest.hotelBudget).length === 0) {
@@ -148,16 +154,13 @@ const CustomBooking = () => {
     setDestinations([...destinations, { id: nextId, district: '', places: [], needGuide: false, guideId: '', needHotel: false, hotelBudget: '', hotelId: '', needVehicle: false, vehicleId: '' }]);
     setNextId(nextId + 1);
   };
-  
   const removeDestination = (id) => {
     if (destinations.length === 1) { toast.error('At least one destination required'); return; }
     setDestinations(destinations.filter(d => d.id !== id));
   };
-  
   const updateDestination = (id, field, value) => {
     setDestinations(destinations.map(d => d.id === id ? { ...d, [field]: value } : d));
   };
-  
   const togglePlace = (id, place) => {
     const dest = destinations.find(d => d.id === id);
     if (!dest) return;
@@ -165,7 +168,7 @@ const CustomBooking = () => {
     updateDestination(id, 'places', newPlaces);
   };
 
-  const calculateTotal = () => {
+  const calculateTotal = useMemo(() => {
     let total = 0;
     destinations.forEach(d => {
       if (d.needGuide && d.guideId) {
@@ -182,9 +185,9 @@ const CustomBooking = () => {
       }
     });
     return total;
-  };
+  }, [destinations, numberOfDays]);
 
-  // Validation per step
+  // Validation functions
   const validateStep1 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -195,7 +198,6 @@ const CustomBooking = () => {
     }
     return true;
   };
-  
   const validateStep2 = () => {
     if (!startDate || !endDate) { toast.error('Please select both start and end dates'); return false; }
     const today = new Date(); today.setHours(0,0,0,0);
@@ -205,12 +207,10 @@ const CustomBooking = () => {
     if (end < start) { toast.error('End date must be after start date'); return false; }
     return true;
   };
-  
   const validateStep3 = () => {
     if (passengers < 1) { toast.error('Passengers must be at least 1'); return false; }
     return true;
   };
-  
   const validateStep4 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -230,12 +230,10 @@ const CustomBooking = () => {
     else if (step === 5) setStep(6);
     else if (step === 6) setStep(7);
   };
-  
   const handlePrev = () => { if (step > 1) setStep(step-1); };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!user) {
-      // Store pending custom booking in sessionStorage
       const pendingData = {
         type: 'custom',
         destinations: destinations.map(d => ({
@@ -258,9 +256,7 @@ const CustomBooking = () => {
       navigate('/login');
       return;
     }
-    
     if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4()) return;
-    
     const allDestinationsData = destinations.map(d => ({
       district: d.district,
       places: d.places,
@@ -273,16 +269,8 @@ const CustomBooking = () => {
         return calculateOptimalRoute(start, placesWithCoords);
       })(),
     }));
-    
-    const routeSummary = {
-      startDate, endDate, numberOfDays, passengers,
-      allDestinations: allDestinationsData,
-    };
-    setSelectedRoute(routeSummary);
-    
-    const totalAmount = calculateTotal();
-    const booking = {
-      id: Date.now(),
+    const totalAmount = calculateTotal;
+    const bookingPayload = {
       type: 'Multi-District Custom Tour',
       destinations: allDestinationsData.map(d => ({
         district: d.district,
@@ -291,20 +279,29 @@ const CustomBooking = () => {
         vehicle: d.vehicle,
         hotel: d.hotel,
       })),
-      startDate, endDate, numberOfDays, passengers,
+      startDate,
+      endDate,
+      numberOfDays,
+      passengers,
       totalAmount,
       status: 'pending',
-      userEmail: user.email,
-      customerName: user.name,
-      customerPhone: user.phone || '',
+      paymentStatus: 'unpaid',
     };
-    addBooking(booking);
-    setShowConfirmModal(true);
+    try {
+      const res = await API.post('/bookings', bookingPayload);
+      const savedBooking = res.data;
+      // ✅ FIX: Use sessionStorage instead of localStorage
+      sessionStorage.setItem('pendingBooking', JSON.stringify(savedBooking));
+      setSelectedRoute({ startDate, endDate, numberOfDays, passengers, allDestinations: allDestinationsData });
+      setShowConfirmModal(true);
+    } catch (err) {
+      toast.error('Failed to create booking');
+    }
   };
-  
+
   const finalConfirmBooking = () => {
-    toast.success('Booking confirmed! Redirecting to your bookings...');
-    navigate('/my-bookings');
+    toast.success('Proceed to payment');
+    navigate('/payment');
   };
 
   const createNumberedIcon = (number, isStart = false) => {
@@ -320,7 +317,6 @@ const CustomBooking = () => {
     });
   };
 
-  // ----- RENDER FUNCTIONS (kept exactly as in your original code) -----
   const renderStep1 = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-primary">Select Your Destinations</h2>
@@ -481,15 +477,17 @@ const CustomBooking = () => {
           {isOpen && (
             <div className="p-4">
               <div className="border rounded-lg overflow-hidden" style={{ height: '350px' }}>
-                <MapContainer center={startPoint} zoom={10} style={{ height: '100%', width: '100%' }}>
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <Marker position={startPoint} icon={createNumberedIcon(0, true)}><Popup>Start: {dest.district}</Popup></Marker>
-                  {optimalRoute.map((marker, i) => (
-                    <Marker key={marker.name} position={marker.coordinates} icon={createNumberedIcon(i+1)}><Popup>{i+1}. {marker.name}</Popup></Marker>
-                  ))}
-                  {positions.length > 1 && <Polyline positions={positions} color="#D4AF37" weight={4} />}
-                  <FitBounds positions={positions} />
-                </MapContainer>
+                <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse flex items-center justify-center">Loading map...</div>}>
+                  <MapContainer center={startPoint} zoom={10} style={{ height: '100%', width: '100%' }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <Marker position={startPoint} icon={createNumberedIcon(0, true)}><Popup>Start: {dest.district}</Popup></Marker>
+                    {optimalRoute.map((marker, i) => (
+                      <Marker key={marker.name} position={marker.coordinates} icon={createNumberedIcon(i+1)}><Popup>{i+1}. {marker.name}</Popup></Marker>
+                    ))}
+                    {positions.length > 1 && <Polyline positions={positions} color="#D4AF37" weight={4} />}
+                    <FitBounds positions={positions} />
+                  </MapContainer>
+                </Suspense>
               </div>
               <div className="bg-blue-50 p-2 rounded mt-2 text-sm">
                 Optimised route: {optimalRoute.map(p => p.name).join(' → ')}
@@ -508,20 +506,17 @@ const CustomBooking = () => {
     );
   };
 
-  const renderStep7 = () => {
-    const total = calculateTotal();
-    return (
-      <div className="space-y-6 text-center">
-        <h2 className="text-2xl font-bold text-primary">Total Price</h2>
-        <div className="text-4xl font-bold text-primary">Rs {total.toLocaleString()}</div>
-        <button onClick={handleConfirmBooking} className="btn-primary w-full py-3">Confirm Booking →</button>
-      </div>
-    );
-  };
+  const renderStep7 = () => (
+    <div className="space-y-6 text-center">
+      <h2 className="text-2xl font-bold text-primary">Total Price</h2>
+      <div className="text-4xl font-bold text-primary">Rs {calculateTotal.toLocaleString()}</div>
+      <button onClick={handleConfirmBooking} className="btn-primary w-full py-3">Confirm Booking →</button>
+    </div>
+  );
 
   const renderConfirmModal = () => {
     if (!selectedRoute) return null;
-    const total = calculateTotal();
+    const total = calculateTotal;
     return (
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
@@ -537,8 +532,8 @@ const CustomBooking = () => {
       </div>
     );
   };
-  // ----- END OF RENDER FUNCTIONS -----
 
+  // Main return
   return (
     <div className="min-h-screen bg-cream py-12">
       <div className="container mx-auto px-4 max-w-3xl">

@@ -1,64 +1,371 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, X, Upload, Star, Globe, Calendar, MapPin } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import API from '../../services/api';
+
+const getImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `http://localhost:5000/${cleanPath}`;
+};
 
 const AdminGuides = () => {
-  const [guides, setGuides] = useState([
-    { id: 1, name: 'Priya Samarawickrama', specialty: 'Cultural & Historical Tours', location: 'Kandy, Sigiriya', rating: 4.9, reviews: 124, language: 'English, German', experience: '15 years', pricePerDay: 5000, image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?w=400' },
-    { id: 2, name: 'Nuwan Jayawardene', specialty: 'Hiking & Adventure', location: 'Ella, Nuwara Eliya', rating: 4.7, reviews: 85, language: 'English', experience: '8 years', pricePerDay: 4500, image: 'https://images.pexels.com/photos/2379005/pexels-photo-2379005.jpeg?w=400' },
-  ]);
-  
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingGuide, setEditingGuide] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [formData, setFormData] = useState({ name: '', specialty: '', location: '', rating: '', reviews: '', language: '', experience: '', pricePerDay: '', image: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    specialty: '',
+    district: '',
+    location: '',
+    language: '',
+    experience: '',
+    certification: '',
+    pricePerDay: '',
+    popular: false,
+    description: '',
+  });
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['guides-admin', page],
+    queryFn: () => API.get(`/guides?page=${page}&limit=10`).then(res => res.data),
+    keepPreviousData: true,
+  });
+  const guides = data?.data || [];
+  const totalPages = data?.totalPages || 1;
+
+  const createMutation = useMutation({
+    mutationFn: (fd) => API.post('/guides', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['guides-admin']);
+      queryClient.invalidateQueries(['guides']);
+      refetch();
+      toast.success('Guide added successfully!');
+      resetModal();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to add guide'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, fd }) => API.put(`/guides/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['guides-admin']);
+      queryClient.invalidateQueries(['guides']);
+      refetch();
+      toast.success('Guide updated successfully!');
+      resetModal();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update guide'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => API.delete(`/guides/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['guides-admin']);
+      queryClient.invalidateQueries(['guides']);
+      refetch();
+      toast.success('Guide deleted successfully!');
+    },
+    onError: () => toast.error('Failed to delete guide'),
+  });
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (file) { const reader = new FileReader(); reader.onloadend = () => { setImagePreview(reader.result); setFormData({ ...formData, image: reader.result }); }; reader.readAsDataURL(file); }
+    if (file && file.size > 2 * 1024 * 1024) {
+      toast.error('Image too large, max 2MB');
+      return;
+    }
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const newGuide = { id: editingGuide ? editingGuide.id : guides.length + 1, ...formData, rating: parseFloat(formData.rating), reviews: parseInt(formData.reviews), pricePerDay: parseInt(formData.pricePerDay) };
-    if (editingGuide) { setGuides(guides.map(g => g.id === editingGuide.id ? newGuide : g)); toast.success('Guide updated!'); }
-    else { setGuides([...guides, newGuide]); toast.success('Guide added!'); }
-    resetModal();
+    const fd = new FormData();
+    fd.append('name', formData.name);
+    fd.append('specialty', formData.specialty);
+    fd.append('district', formData.district);
+    fd.append('location', formData.location);
+    fd.append('language', formData.language);
+    fd.append('experience', formData.experience);
+    fd.append('certification', formData.certification);
+    fd.append('pricePerDay', formData.pricePerDay);
+    fd.append('popular', formData.popular);
+    fd.append('description', formData.description);
+    if (imageFile) fd.append('image', imageFile);
+    if (editingGuide) updateMutation.mutate({ id: editingGuide.id, fd });
+    else createMutation.mutate(fd);
   };
 
-  const handleDelete = (id) => { if (window.confirm('Delete this guide?')) { setGuides(guides.filter(g => g.id !== id)); toast.success('Guide deleted!'); } };
-  const handleEdit = (guide) => { setEditingGuide(guide); setFormData(guide); setImagePreview(guide.image); setShowModal(true); };
-  const resetModal = () => { setShowModal(false); setEditingGuide(null); setImagePreview(null); setFormData({ name: '', specialty: '', location: '', rating: '', reviews: '', language: '', experience: '', pricePerDay: '', image: '' }); };
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this guide?')) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleEdit = (guide) => {
+    setEditingGuide(guide);
+    setFormData({
+      name: guide.name,
+      specialty: guide.specialty,
+      district: guide.district,
+      location: guide.location || '',
+      language: guide.language || '',
+      experience: guide.experience || '',
+      certification: guide.certification || '',
+      pricePerDay: guide.pricePerDay,
+      popular: guide.popular,
+      description: guide.description || '',
+    });
+    setImagePreview(getImageUrl(guide.image));
+    setShowModal(true);
+  };
+
+  const resetModal = () => {
+    setShowModal(false);
+    setEditingGuide(null);
+    setImagePreview(null);
+    setImageFile(null);
+    setFormData({
+      name: '',
+      specialty: '',
+      district: '',
+      location: '',
+      language: '',
+      experience: '',
+      certification: '',
+      pricePerDay: '',
+      popular: false,
+      description: '',
+    });
+  };
+
+  if (isLoading) return <div className="text-center py-20">Loading guides...</div>;
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-bold text-primary">Manage Tour Guides</h1><button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2"><Plus size={18} /> Add Guide</button></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-primary">Manage Guides</h1>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium"
+        >
+          <Plus size={18} /> Add Guide
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {guides.map(guide => (
-          <div key={guide.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition flex">
-            <img src={guide.image} alt={guide.name} className="w-32 h-32 object-cover" />
-            <div className="p-4 flex-1">
-              <div className="flex justify-between"><h3 className="font-bold text-lg text-primary">{guide.name}</h3><span className="flex items-center gap-1"><Star size={14} className="text-cta fill-current" />{guide.rating}</span></div>
+          <div key={guide.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300">
+            <img
+              src={getImageUrl(guide.image)}
+              alt={guide.name}
+              className="w-full h-48 object-cover"
+              loading="lazy"
+              onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
+            />
+            <div className="p-4">
+              <div className="flex justify-between items-start">
+                <h3 className="font-bold text-lg text-primary">{guide.name}</h3>
+                <span className="flex items-center gap-1 text-sm bg-yellow-50 px-2 py-0.5 rounded-full">
+                  <Star size={14} className="text-cta fill-current" /> {guide.rating}
+                </span>
+              </div>
               <p className="text-gray-500 text-sm">{guide.specialty}</p>
-              <div className="flex gap-3 text-xs text-gray-500 my-2"><span className="flex items-center gap-1"><MapPin size={12} /> {guide.location.split(',')[0]}</span><span className="flex items-center gap-1"><Globe size={12} /> {guide.language}</span><span className="flex items-center gap-1"><Calendar size={12} /> {guide.experience}</span></div>
-              <p className="text-primary font-bold">Rs {guide.pricePerDay.toLocaleString()}/day</p>
-              <div className="flex gap-2 mt-2"><button onClick={() => handleEdit(guide)} className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm"><Edit2 size={14} /> Edit</button><button onClick={() => handleDelete(guide.id)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm"><Trash2 size={14} /> Delete</button></div>
+              <p className="text-primary font-bold mt-2">Rs {guide.pricePerDay.toLocaleString()}/day</p>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => handleEdit(guide)}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:from-blue-600 hover:to-blue-700 transition-all shadow-md"
+                >
+                  <Edit2 size={16} /> Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(guide.id)}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:from-red-600 hover:to-red-700 transition-all shadow-md"
+                >
+                  <Trash2 size={16} /> Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center mt-8">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline px-4 py-2">
+            Previous
+          </button>
+          <span className="text-gray-600">Page {page} of {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-outline px-4 py-2">
+            Next
+          </button>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full"><div className="flex justify-between p-4 border-b"><h2 className="text-xl font-bold text-primary">{editingGuide ? 'Edit Guide' : 'Add Guide'}</h2><button onClick={resetModal}><X size={24} /></button></div>
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4"><div><label>Name *</label><input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="input-field" required /></div><div><label>Specialty *</label><input type="text" value={formData.specialty} onChange={(e) => setFormData({...formData, specialty: e.target.value})} className="input-field" required /></div></div>
-            <div><label>Location *</label><input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className="input-field" required /></div>
-            <div className="grid grid-cols-2 gap-4"><div><label>Rating</label><input type="number" step="0.1" value={formData.rating} onChange={(e) => setFormData({...formData, rating: e.target.value})} className="input-field" /></div><div><label>Reviews</label><input type="number" value={formData.reviews} onChange={(e) => setFormData({...formData, reviews: e.target.value})} className="input-field" /></div></div>
-            <div className="grid grid-cols-2 gap-4"><div><label>Languages</label><input type="text" value={formData.language} onChange={(e) => setFormData({...formData, language: e.target.value})} className="input-field" /></div><div><label>Experience</label><input type="text" value={formData.experience} onChange={(e) => setFormData({...formData, experience: e.target.value})} className="input-field" /></div></div>
-            <div><label>Price per Day *</label><input type="number" value={formData.pricePerDay} onChange={(e) => setFormData({...formData, pricePerDay: e.target.value})} className="input-field" required /></div>
-            <div><label>Guide Image</label><div className="border-2 border-dashed rounded-lg p-4 text-center">{imagePreview ? <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover rounded-full mx-auto" /> : <label className="cursor-pointer"><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /><Upload size={40} className="text-gray-400 mx-auto" /><p>Click to upload</p></label>}</div></div>
-            <div className="flex gap-3"><button type="button" onClick={resetModal} className="btn-outline flex-1">Cancel</button><button type="submit" className="btn-primary flex-1">{editingGuide ? 'Update' : 'Add'}</button></div>
-          </form></div>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex justify-between items-center p-5 border-b sticky top-0 bg-white">
+              <h2 className="text-2xl font-bold text-primary">
+                {editingGuide ? 'Edit Guide' : 'Add New Guide'}
+              </h2>
+              <button onClick={resetModal} className="text-gray-400 hover:text-gray-600 transition">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block font-medium mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Specialty *</label>
+                  <input
+                    type="text"
+                    value={formData.specialty}
+                    onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">District *</label>
+                  <input
+                    type="text"
+                    value={formData.district}
+                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Service Area</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="input-field"
+                    placeholder="e.g., Kandy, Sigiriya"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Languages</label>
+                  <input
+                    type="text"
+                    value={formData.language}
+                    onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                    className="input-field"
+                    placeholder="English, German"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Experience</label>
+                  <input
+                    type="text"
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                    className="input-field"
+                    placeholder="10 years"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Certification</label>
+                  <input
+                    type="text"
+                    value={formData.certification}
+                    onChange={(e) => setFormData({ ...formData, certification: e.target.value })}
+                    className="input-field"
+                    placeholder="Senior Certified Guide"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Price per Day (Rs) *</label>
+                  <input
+                    type="number"
+                    value={formData.pricePerDay}
+                    onChange={(e) => setFormData({ ...formData, pricePerDay: e.target.value })}
+                    className="input-field"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Why choose this guide? (Description)</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="input-field"
+                  rows="4"
+                  placeholder="E.g., Deep local knowledge, personalized itineraries, and a passion for sharing Sri Lanka's rich heritage."
+                />
+              </div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.popular}
+                  onChange={(e) => setFormData({ ...formData, popular: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                Mark as Popular
+              </label>
+              <div>
+                <label className="block font-medium mb-1">Guide Image (max 2MB)</label>
+                <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary transition">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="guide-image"
+                  />
+                  <label htmlFor="guide-image" className="cursor-pointer flex flex-col items-center">
+                    <Upload size={32} className="text-gray-400" />
+                    <span className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</span>
+                  </label>
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="mt-3 w-32 h-32 object-cover rounded-full mx-auto"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-700">
+                <strong>Note:</strong> Guide rating and reviews are automatically calculated from customer feedback.
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={resetModal} className="btn-outline flex-1 py-2">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  className="btn-primary flex-1 py-2 flex items-center justify-center gap-2"
+                >
+                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={18} className="animate-spin" />}
+                  {editingGuide ? 'Update Guide' : 'Add Guide'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
