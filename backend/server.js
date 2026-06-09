@@ -19,6 +19,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 const authRoutes = require('./routes/auth');
+const analyticsRoutes = require('./routes/analytics');
 const bookingRoutes = require('./routes/bookings');
 const vehicleRoutes = require('./routes/vehicles');
 const hotelRoutes = require('./routes/hotels');
@@ -26,11 +27,13 @@ const guideRoutes = require('./routes/guides');
 const feedbackRoutes = require('./routes/feedback');
 const tourPackageRoutes = require('./routes/tourPackages');
 const paymentRoutes = require('./routes/payments');
+const districtRoutes = require('./routes/districts');
 
 
 // const userRoutes = require('./routes/users'); // uncomment if needed
 
 app.use('/api/auth', authRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/hotels', hotelRoutes);
@@ -39,7 +42,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/tour-packages', tourPackageRoutes);
 app.use('/api/payments', paymentRoutes);
-
+app.use('/api/districts', districtRoutes);
 // app.use('/api/users', userRoutes);
 
 // Test route

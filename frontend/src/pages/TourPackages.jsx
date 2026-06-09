@@ -1,10 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package, Car, Home, BookOpen, Heart, X } from 'lucide-react';
-import API, { getImageUrl } from '../services/api';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { 
+  Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package, 
+  Car, Home, BookOpen, Heart, X, Clock 
+} from 'lucide-react';
+import API, { getImageUrl } from '../services/api';
+import toast from 'react-hot-toast';
 import tourPackagesBg from '../images/TourPackagesBackground.jpg';
 
 const PackageCard = React.memo(({ pkg, onViewDetails }) => (
@@ -26,7 +29,9 @@ const PackageCard = React.memo(({ pkg, onViewDetails }) => (
       </div>
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
         <div><span className="text-2xl font-bold text-primary">Rs {pkg.price.toLocaleString()}</span><p className="text-xs text-gray-500">per package</p></div>
-        <button onClick={() => onViewDetails(pkg)} className="bg-primary text-white px-5 py-2 rounded-xl hover:bg-secondary transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"><Eye size={16} /> View Details</button>
+        <button onClick={() => onViewDetails(pkg)} className="bg-primary text-white px-5 py-2 rounded-xl hover:bg-secondary transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg">
+          <Eye size={16} /> View Details
+        </button>
       </div>
     </div>
   </div>
@@ -35,12 +40,26 @@ const PackageCard = React.memo(({ pkg, onViewDetails }) => (
 const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [step, setStep] = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [passengers, setPassengers] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen || !pkg) return null;
 
+  const calculateDays = () => {
+    if (!startDate || !endDate) return 0;
+    const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  };
+
+  const totalAmount = pkg.price * passengers;
+
+  const handleProceedToBooking = () => setStep(2);
+
   const handleBookNow = async () => {
     if (!user) {
-      // Store intended booking in session and redirect to login
       sessionStorage.setItem('intendedBooking', JSON.stringify({
         type: 'tour',
         packageId: pkg.id,
@@ -48,92 +67,145 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
         price: pkg.price,
         duration: pkg.duration,
         maxPeople: pkg.maxPeople,
-        hotel: pkg.hotel,
-        vehicle: pkg.vehicle,
-        guide: pkg.guide,
+        startDate,
+        endDate,
+        passengers,
       }));
       toast.error('Please login to book this package');
       navigate('/login');
       return;
     }
 
+    if (!startDate || !endDate) {
+      toast.error('Please select travel dates');
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(startDate);
+    const now = new Date();
+
+    // 1. Past date check
+    if (start < today) {
+      toast.error('Start date cannot be in the past');
+      return;
+    }
+
+    // 2. At least 24 hours before start date
+    const hoursDiff = (start - now) / (1000 * 60 * 60);
+    if (hoursDiff < 24) {
+      toast.error('Bookings must be made at least 24 hours before the tour start date');
+      return;
+    }
+
+    if (passengers < 1) {
+      toast.error('Minimum 1 passenger');
+      return;
+    }
+    const days = calculateDays();
+    if (days <= 0) {
+      toast.error('End date must be after start date');
+      return;
+    }
+    if (passengers > pkg.maxPeople) {
+      toast.error(`Max ${pkg.maxPeople} passengers allowed`);
+      return;
+    }
+
+    setLoading(true);
     try {
       const bookingPayload = {
         type: 'Tour Package',
         packageName: pkg.name,
-        destination: pkg.district,
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + pkg.duration * 86400000).toISOString().split('T')[0],
-        numberOfDays: parseInt(pkg.duration),
-        passengers: 1,
-        totalAmount: pkg.price,
+        startDate,
+        endDate,
+        numberOfDays: days,
+        passengers: parseInt(passengers),
+        totalAmount: parseFloat(totalAmount),
         status: 'pending',
         paymentStatus: 'unpaid',
       };
 
       const res = await API.post('/bookings', bookingPayload);
       const savedBooking = res.data;
-
       sessionStorage.setItem('pendingBooking', JSON.stringify(savedBooking));
       navigate('/payment');
     } catch (err) {
+      console.error('Booking error:', err);
       toast.error(err.response?.data?.error || 'Failed to create booking');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl">
-        <button onClick={onClose} className="absolute right-5 top-5 z-10 bg-white/90 backdrop-blur rounded-full p-2 shadow-md hover:bg-gray-100 transition">
+        <button onClick={() => { setStep(1); onClose(); }} className="absolute right-5 top-5 z-10 bg-white/90 backdrop-blur rounded-full p-2 shadow-md hover:bg-gray-100 transition">
           <X size={22} className="text-gray-600" />
         </button>
-        <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-72 object-cover rounded-t-3xl" />
-        <div className="p-6 md:p-8">
-          <h2 className="text-3xl font-bold text-primary mb-2">{pkg.name}</h2>
-          <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={18} /> {pkg.district}</div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2"><Calendar size={18} className="text-primary" /> Duration: {pkg.duration} days</div>
-              <div className="flex items-center gap-2"><Users size={18} className="text-primary" /> Max People: {pkg.maxPeople}</div>
-              <div className="flex items-center gap-2"><Star size={18} className="text-primary" /> Best Season: {pkg.bestSeason || 'Year round'}</div>
-              <div className="flex items-center gap-2"><Utensils size={18} className="text-primary" /> Meal Plan: {pkg.mealPlan || 'Not specified'}</div>
-            </div>
-            <div className="space-y-3">
-              {pkg.hotel && <div className="flex items-center gap-2"><Home size={18} className="text-primary" /> Hotel: {pkg.hotel.name}</div>}
-              {pkg.vehicle && <div className="flex items-center gap-2"><Car size={18} className="text-primary" /> Vehicle: {pkg.vehicle.model} ({pkg.vehicle.type})</div>}
-              {pkg.guide && <div className="flex items-center gap-2"><BookOpen size={18} className="text-primary" /> Guide: {pkg.guide.name}</div>}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="font-bold text-lg mb-2">Description</h3>
-            <p className="text-gray-700">{pkg.description}</p>
-          </div>
-
-          {pkg.inclusions && pkg.inclusions.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Package size={18} className="text-green-600" /> Inclusions</h3>
-              <div className="flex flex-wrap gap-2">
-                {pkg.inclusions.map((item, i) => (
-                  <span key={i} className="bg-green-50 text-green-700 px-2 py-1 rounded-full text-sm">{item}</span>
-                ))}
+        {step === 1 ? (
+          <>
+            <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-72 object-cover rounded-t-3xl" />
+            <div className="p-6 md:p-8">
+              <h2 className="text-3xl font-bold text-primary mb-2">{pkg.name}</h2>
+              <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={18} /> {pkg.district}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2"><Calendar size={18} className="text-primary" /> Duration: {pkg.duration} days</div>
+                  <div className="flex items-center gap-2"><Users size={18} className="text-primary" /> Max People: {pkg.maxPeople}</div>
+                  <div className="flex items-center gap-2"><Star size={18} className="text-primary" /> Best Season: {pkg.bestSeason || 'Year round'}</div>
+                  <div className="flex items-center gap-2"><Utensils size={18} className="text-primary" /> Meal Plan: {pkg.mealPlan || 'Not specified'}</div>
+                </div>
+                <div className="space-y-3">
+                  {pkg.hotel && <div className="flex items-center gap-2"><Home size={18} className="text-primary" /> Hotel: {pkg.hotel.name}</div>}
+                  {pkg.vehicle && <div className="flex items-center gap-2"><Car size={18} className="text-primary" /> Vehicle: {pkg.vehicle.model} ({pkg.vehicle.type})</div>}
+                  {pkg.guide && <div className="flex items-center gap-2"><BookOpen size={18} className="text-primary" /> Guide: {pkg.guide.name}</div>}
+                </div>
+              </div>
+              <div className="mb-6"><h3 className="font-bold text-lg mb-2">Description</h3><p className="text-gray-700">{pkg.description}</p></div>
+              {pkg.inclusions && pkg.inclusions.length > 0 && (
+                <div className="mb-6"><h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Package size={18} className="text-green-600" /> Inclusions</h3>
+                  <div className="flex flex-wrap gap-2">{pkg.inclusions.map((item, i) => (<span key={i} className="bg-green-50 text-green-700 px-2 py-1 rounded-full text-sm">{item}</span>))}</div>
+                </div>
+              )}
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-2xl mt-4">
+                <div className="flex justify-between items-center"><span className="text-gray-600">Base Price</span><span className="text-2xl font-bold text-primary">Rs {pkg.price.toLocaleString()}</span></div>
+                <p className="text-xs text-gray-500 mt-1">* per package (up to {pkg.maxPeople} people)</p>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button onClick={onClose} className="btn-outline flex-1">Close</button>
+                <button onClick={handleProceedToBooking} className="btn-primary flex-1">Book Now →</button>
               </div>
             </div>
-          )}
-
-          <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-2xl mt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Total Price</span>
-              <span className="text-3xl font-bold text-primary">Rs {pkg.price.toLocaleString()}</span>
+          </>
+        ) : (
+          <div className="p-6 md:p-8">
+            <h2 className="text-2xl font-bold text-primary mb-4">Customize Your Booking</h2>
+            <div className="space-y-5">
+              <div><label className="block font-medium mb-1">Start Date *</label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input-field" required /></div>
+              <div><label className="block font-medium mb-1">End Date *</label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input-field" required /></div>
+              <div><label className="block font-medium mb-1">Number of Passengers *</label>
+                <input type="number" min="1" max={pkg.maxPeople} value={passengers} onChange={e => setPassengers(e.target.value)} className="input-field" />
+                <p className="text-xs text-gray-500 mt-1">Max {pkg.maxPeople} people</p>
+              </div>
+              {calculateDays() > 0 && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p><strong>Number of days:</strong> {calculateDays()}</p>
+                  <p><strong>Total Price:</strong> <span className="font-bold text-primary text-xl">Rs {totalAmount.toLocaleString()}</span></p>
+                </div>
+              )}
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setStep(1)} className="btn-outline flex-1">Back</button>
+                <button onClick={handleBookNow} disabled={loading} className="btn-primary flex-1">
+                  {loading ? 'Creating Booking...' : 'Confirm Booking →'}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div className="flex gap-3 mt-6">
-            <button onClick={onClose} className="btn-outline flex-1">Close</button>
-            <button onClick={handleBookNow} className="btn-primary flex-1">Book Now</button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

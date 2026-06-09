@@ -43,7 +43,7 @@ const AdminDashboard = () => {
     { path: '/admin/company-commission', name: 'Company Commission', icon: TrendingUp },
     { path: '/admin/feedbacks', name: 'Manage Feedbacks', icon: MessageSquare },
     { path: '/admin/tour-packages', name: 'Manage Tour Packages', icon: Package },
-
+    // Destinations menu removed
   ];
 
   const isActive = (path) => {
@@ -78,8 +78,6 @@ const AdminDashboard = () => {
             </Link>
           ))}
         </nav>
-
-        {/* "Customer Pages" section removed */}
 
         <div className="absolute bottom-0 w-full p-4 border-t border-white/20">
           <div className={`flex items-center gap-3 px-2 py-2 mb-3 ${!isSidebarOpen && 'justify-center'}`}>

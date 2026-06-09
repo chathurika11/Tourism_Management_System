@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Star, Award, Eye, Globe, Calendar, MapPin, Search, Heart } from 'lucide-react'; // removed Users, BookOpen
+import { Star, Award, Eye, Globe, Calendar, MapPin, Search, Heart } from 'lucide-react';
 import API, { getImageUrl } from '../services/api';
 import GuideDetailModal from '../components/GuideDetailModal';
 import { useTour } from '../context/TourContext';
@@ -30,10 +30,7 @@ const GuideCard = React.memo(({ guide, onViewDetails }) => (
         <div className="flex items-center gap-1"><Calendar size={14} /> {guide.experience || 'N/A'}</div>
       </div>
       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-        <div>
-          <span className="text-2xl font-bold text-primary">Rs {guide.pricePerDay.toLocaleString()}</span>
-          <p className="text-xs text-gray-500">per day</p>
-        </div>
+        <div><span className="text-2xl font-bold text-primary">Rs {guide.pricePerDay.toLocaleString()}</span><p className="text-xs text-gray-500">per day</p></div>
         <button onClick={() => onViewDetails(guide)} className="bg-primary text-white px-4 py-2 rounded-xl hover:bg-secondary transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg">
           <Eye size={14} /> View Profile
         </button>
@@ -53,8 +50,8 @@ const TourGuides = () => {
     queryKey: ['guides', page],
     queryFn: () => API.get(`/guides?page=${page}&limit=12`).then(res => res.data),
     keepPreviousData: true,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const guides = useMemo(() => data?.data || [], [data?.data]);
@@ -75,9 +72,7 @@ const TourGuides = () => {
     setShowModal(true);
   };
 
-  if (isLoading && page === 1) {
-    return <div className="min-h-screen bg-cream flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
-  }
+  if (isLoading && page === 1) return <div className="min-h-screen bg-cream flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   if (error) toast.error('Failed to load guides');
 
   return (
@@ -88,14 +83,10 @@ const TourGuides = () => {
           <h1 className="text-5xl md:text-6xl font-bold mb-4 drop-shadow-lg">Expert Tour Guides</h1>
           <p className="text-xl max-w-2xl mx-auto opacity-95">Enhance your journey with our knowledgeable local guides who bring the magic of Sri Lanka to life</p>
           <div className="mt-10 max-w-md mx-auto">
-            <div className="relative group">
-              <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition" size={22} />
-              <input type="text" placeholder="Search by name, specialty or location..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-14 pr-4 py-4 rounded-full text-dark focus:outline-none focus:ring-4 focus:ring-cta/50 shadow-2xl transition" />
-            </div>
+            <div className="relative group"><Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition" size={22} /><input type="text" placeholder="Search by name, specialty or location..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-14 pr-4 py-4 rounded-full text-dark focus:outline-none focus:ring-4 focus:ring-cta/50 shadow-2xl transition" /></div>
           </div>
         </div>
       </section>
-
       <section className="py-16 container mx-auto px-4">
         {filteredGuides.length === 0 ? <div className="text-center py-16"><p className="text-gray-500 text-xl">No guides found.</p></div> : (
           <>
@@ -112,7 +103,6 @@ const TourGuides = () => {
           </>
         )}
       </section>
-
       <GuideDetailModal isOpen={showModal} onClose={() => setShowModal(false)} guide={selectedGuide} onAddFeedback={addGuideFeedback} />
     </div>
   );

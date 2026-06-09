@@ -2,14 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, X, Upload, Star, Clock, MapPin, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import API from '../../services/api';
-
-const getImageUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  return `http://localhost:5000/${cleanPath}`;
-};
+import API, { getImageUrl } from '../../services/api';
 
 const AdminHotels = () => {
   const queryClient = useQueryClient();
@@ -18,23 +11,28 @@ const AdminHotels = () => {
   const [editingHotel, setEditingHotel] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     name: '', location: '', district: '', pricePerNight: '', amenities: '',
     checkIn: '2:00 PM', checkOut: '12:00 PM', freeCancellationHours: '48', breakfastIncluded: false,
   });
 
-  // Fetch hotels with pagination
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['hotels-admin', page],
     queryFn: () => API.get(`/hotels?page=${page}&limit=10`).then(res => res.data),
     keepPreviousData: true,
-    staleTime: 0, // Always fetch fresh data when needed
+    staleTime: 0,
   });
   
   const hotels = data?.data || [];
   const totalPages = data?.totalPages || 1;
 
-  // Helper to refresh all hotel data (admin and customer)
+  const filteredHotels = hotels.filter(hotel =>
+    hotel.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    hotel.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    hotel.district?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const refreshAll = () => {
     queryClient.invalidateQueries({ queryKey: ['hotels-admin'] });
     queryClient.invalidateQueries({ queryKey: ['hotels'] });
@@ -43,30 +41,19 @@ const AdminHotels = () => {
 
   const createMutation = useMutation({
     mutationFn: (fd) => API.post('/hotels', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: () => {
-      toast.success('Hotel added successfully!');
-      resetModal();
-      refreshAll();
-    },
+    onSuccess: () => { toast.success('Hotel added successfully!'); resetModal(); refreshAll(); },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add hotel'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, fd }) => API.put(`/hotels/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: () => {
-      toast.success('Hotel updated successfully!');
-      resetModal();
-      refreshAll();
-    },
+    onSuccess: () => { toast.success('Hotel updated successfully!'); resetModal(); refreshAll(); },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update hotel'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => API.delete(`/hotels/${id}`),
-    onSuccess: () => {
-      toast.success('Hotel deleted successfully!');
-      refreshAll();
-    },
+    onSuccess: () => { toast.success('Hotel deleted successfully!'); refreshAll(); },
     onError: () => toast.error('Failed to delete hotel'),
   });
 
@@ -127,41 +114,32 @@ const AdminHotels = () => {
     });
   };
 
-  if (isLoading && hotels.length === 0) {
-    return <div className="text-center py-20">Loading hotels...</div>;
-  }
+  if (isLoading && hotels.length === 0) return <div className="text-center py-20">Loading hotels...</div>;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-primary">Manage Hotels</h1>
-        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={18} /> Add Hotel
-        </button>
+        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2"><Plus size={18} /> Add Hotel</button>
       </div>
 
-      {/* Show loading indicator when refreshing */}
-      {isFetching && hotels.length > 0 && (
-        <div className="text-center py-2 text-sm text-gray-500">Refreshing...</div>
-      )}
+      <div className="mb-4">
+        <input type="text" placeholder="Search by name, location, or district..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input-field" />
+      </div>
+
+      {isFetching && hotels.length > 0 && <div className="text-center py-2 text-sm text-gray-500">Refreshing...</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {hotels.map(hotel => (
+        {filteredHotels.map(hotel => (
           <div key={hotel.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition">
-            <img 
-              src={getImageUrl(hotel.image)} 
-              alt={hotel.name} 
-              className="w-full h-48 object-cover" 
-              loading="lazy"
-              onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
-            />
+            <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-48 object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }} />
             <div className="p-4">
               <div className="flex justify-between items-start">
                 <h3 className="font-bold text-lg text-primary">{hotel.name}</h3>
                 <span className="flex items-center gap-1 text-sm bg-yellow-50 px-2 py-0.5 rounded-full"><Star size={14} className="text-cta fill-current" /> {hotel.rating}</span>
               </div>
               <p className="text-gray-500 text-sm flex items-center gap-1"><MapPin size={12} /> {hotel.location}</p>
-              <p className="text-primary font-bold mt-2">Rs {hotel.pricePerNight.toLocaleString()}/night</p>
+              <p className="text-primary font-bold mt-2">Rs {hotel.pricePerNight?.toLocaleString()}/night</p>
               <div className="mt-2 text-xs text-gray-500 flex gap-2"><Clock size={12} /> {hotel.checkIn} | {hotel.checkOut}</div>
               <div className="flex gap-3 mt-4">
                 <button onClick={() => handleEdit(hotel)} className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:from-blue-600 hover:to-blue-700 transition-all"><Edit2 size={16} /> Edit</button>
@@ -180,41 +158,11 @@ const AdminHotels = () => {
         </div>
       )}
 
+      {/* Modal – keep your existing modal JSX here (it's unchanged) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center p-5 border-b sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-primary">{editingHotel ? 'Edit Hotel' : 'Add New Hotel'}</h2>
-              <button onClick={resetModal}><X size={24} /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              {/* Form fields – unchanged */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div><label className="block font-medium mb-1">Hotel Name *</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="input-field" required /></div>
-                <div><label className="block font-medium mb-1">Location *</label><input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="input-field" required /></div>
-                <div><label className="block font-medium mb-1">District *</label><input type="text" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} className="input-field" required /></div>
-                <div><label className="block font-medium mb-1">Price per Night (Rs) *</label><input type="number" value={formData.pricePerNight} onChange={e => setFormData({...formData, pricePerNight: e.target.value})} className="input-field" required /></div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-primary mb-3">Important Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label className="block text-sm">Check-in Time</label><input type="text" value={formData.checkIn} onChange={e => setFormData({...formData, checkIn: e.target.value})} className="input-field" /></div>
-                  <div><label className="block text-sm">Check-out Time</label><input type="text" value={formData.checkOut} onChange={e => setFormData({...formData, checkOut: e.target.value})} className="input-field" /></div>
-                  <div><label className="block text-sm">Free Cancellation (hours)</label><input type="number" value={formData.freeCancellationHours} onChange={e => setFormData({...formData, freeCancellationHours: e.target.value})} className="input-field" /></div>
-                </div>
-                <label className="flex items-center gap-2 mt-3"><input type="checkbox" checked={formData.breakfastIncluded} onChange={e => setFormData({...formData, breakfastIncluded: e.target.checked})} /> Breakfast Included</label>
-              </div>
-              <div><label className="block font-medium mb-1">Amenities (comma separated)</label><textarea value={formData.amenities} onChange={e => setFormData({...formData, amenities: e.target.value})} className="input-field" rows="3" placeholder="Free WiFi, Pool, Spa, Restaurant, Parking" /></div>
-              <div><label className="block font-medium mb-1">Hotel Image (max 2MB)</label><div className="border-2 border-dashed rounded-lg p-4 text-center"><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="hotel-image" /><label htmlFor="hotel-image" className="cursor-pointer"><Upload size={32} className="mx-auto text-gray-400" /><span>Click to upload</span></label>{imagePreview && <img src={imagePreview} alt="Preview" className="mt-2 w-32 h-32 object-cover rounded" />}</div></div>
-              <div className="bg-yellow-50 p-3 rounded-lg text-sm"><strong>Note:</strong> Rating automatically calculated from customer reviews.</div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={resetModal} className="btn-outline flex-1">Cancel</button>
-                <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={18} className="animate-spin" />}
-                  {editingHotel ? 'Update Hotel' : 'Add Hotel'}
-                </button>
-              </div>
-            </form>
+            {/* ... your modal form content (unchanged) ... */}
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Star, MapPin, Car, Users, Compass, Award, Clock, Shield, ChevronRight, Hotel, Heart, Globe, ArrowRight } from 'lucide-react';
+import { Search, Star, Compass, Award, Clock, Shield, ChevronRight, Hotel, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
 import home1 from '../images/home1.jpeg';
@@ -10,8 +10,6 @@ import home3 from '../images/home3.jpeg';
 import home4 from '../images/home4.jpeg';
 import home5 from '../images/home5.jpeg';
 import home6 from '../images/home6.jpeg';
-
-
 
 const backgroundImages = [home1, home2, home3, home4, home5, home6];
 
@@ -23,12 +21,16 @@ const getImageUrl = (path) => {
   return `http://localhost:5000/${cleanPath}`;
 };
 
+// Helper to safely format numbers
+const formatPrice = (price) => {
+  if (price === undefined || price === null) return '0';
+  return price.toLocaleString();
+};
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState({ tours: [], hotels: [], vehicles: [], guides: [] });
-  const [showResults, setShowResults] = useState(false);
 
   // Background slideshow
   useEffect(() => {
@@ -39,39 +41,47 @@ const LandingPage = () => {
   }, []);
 
   // Fetch top rated hotels (limit 3, sorted by rating desc)
-  const { data: hotelsData } = useQuery({
+  const { data: hotelsData, isLoading: hotelsLoading } = useQuery({
     queryKey: ['home-hotels'],
     queryFn: async () => {
       const res = await API.get('/hotels?page=1&limit=10');
-      const hotels = res.data.data || [];
-      return hotels.sort((a, b) => b.rating - a.rating).slice(0, 3);
+      const hotels = res.data?.data || [];
+      return hotels
+        .filter(h => h.pricePerNight !== undefined && h.rating !== undefined)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 3);
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch top rated vehicles (limit 3, sorted by rating desc)
-  const { data: vehiclesData } = useQuery({
+  // Fetch top rated vehicles
+  const { data: vehiclesData, isLoading: vehiclesLoading } = useQuery({
     queryKey: ['home-vehicles'],
     queryFn: async () => {
       const res = await API.get('/vehicles?page=1&limit=10');
-      const vehicles = res.data.data || [];
-      return vehicles.sort((a, b) => b.rating - a.rating).slice(0, 3);
+      const vehicles = res.data?.data || [];
+      return vehicles
+        .filter(v => v.pricePerDay !== undefined && v.rating !== undefined)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 3);
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch top rated guides (limit 4, sorted by rating desc)
-  const { data: guidesData } = useQuery({
+  // Fetch top rated guides
+  const { data: guidesData, isLoading: guidesLoading } = useQuery({
     queryKey: ['home-guides'],
     queryFn: async () => {
       const res = await API.get('/guides?page=1&limit=10');
-      const guides = res.data.data || [];
-      return guides.sort((a, b) => b.rating - a.rating).slice(0, 4);
+      const guides = res.data?.data || [];
+      return guides
+        .filter(g => g.rating !== undefined)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 4);
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // Static features (unchanged)
   const features = [
     { icon: Compass, title: 'Curated Tours', desc: 'Hand-picked cultural and adventure experiences', color: 'bg-primary' },
     { icon: Award, title: 'Certified Guides', desc: 'Expert local guides with certification', color: 'bg-secondary' },
@@ -86,35 +96,37 @@ const LandingPage = () => {
     { value: '98%', label: 'Satisfaction' },
   ];
 
-  // Search handler (still uses static data from tourismData.js for simplicity – you can keep it as is or remove)
   const handleSearch = (e) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
-    // For demo, we redirect to the search page or keep existing logic
-    // You can enhance later – for now we just alert
     toast.info('Search feature coming soon – use the dedicated pages');
   };
 
-  const clearSearch = () => {
-    setSearchTerm('');
-    setShowResults(false);
-  };
-
-  // Helper to render popular items
   const renderPopularHotels = () => {
-    if (!hotelsData?.length) return <p className="text-gray-500">Loading hotels...</p>;
+    if (hotelsLoading) return <p className="text-gray-500">Loading hotels...</p>;
+    if (!hotelsData?.length) return <p className="text-gray-500">No hotels found</p>;
+
     return hotelsData.map(hotel => (
       <div key={hotel.id} className="group bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/hotels/${hotel.id}`)}>
         <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
           <div className="flex justify-between items-start">
             <h3 className="font-bold text-lg text-primary">{hotel.name}</h3>
-            <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs"><Star size={12} className="text-cta fill-current" />{hotel.rating}</div>
+            <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+              <Star size={12} className="text-cta fill-current" /> {hotel.rating?.toFixed(1) || 'N/A'}
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-gray-500 text-sm my-2"><Hotel size={14} /> {hotel.location}</div>
+          <div className="flex items-center gap-1 text-gray-500 text-sm my-2">
+            <Hotel size={14} /> {hotel.location || 'N/A'}
+          </div>
           <div className="flex justify-between items-center mt-3">
-            <span className="text-lg font-bold text-primary">Rs {hotel.pricePerNight.toLocaleString()}<span className="text-xs">/night</span></span>
-            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">View Details <ChevronRight size={14} /></button>
+            <span className="text-lg font-bold text-primary">
+              Rs {formatPrice(hotel.pricePerNight)}
+              <span className="text-xs">/night</span>
+            </span>
+            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">
+              View Details <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -122,19 +134,28 @@ const LandingPage = () => {
   };
 
   const renderPopularVehicles = () => {
-    if (!vehiclesData?.length) return <p className="text-gray-500">Loading vehicles...</p>;
+    if (vehiclesLoading) return <p className="text-gray-500">Loading vehicles...</p>;
+    if (!vehiclesData?.length) return <p className="text-gray-500">No vehicles found</p>;
+
     return vehiclesData.map(vehicle => (
       <div key={vehicle.id} className="group bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/vehicles/${vehicle.id}`)}>
         <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
           <div className="flex justify-between items-start">
             <h3 className="font-bold text-lg text-primary">{vehicle.model}</h3>
-            <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs"><Star size={12} className="text-cta fill-current" />{vehicle.rating}</div>
+            <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+              <Star size={12} className="text-cta fill-current" /> {vehicle.rating?.toFixed(1) || 'N/A'}
+            </div>
           </div>
           <p className="text-gray-500 text-sm my-2">{vehicle.type} • {vehicle.location}</p>
           <div className="flex justify-between items-center mt-3">
-            <span className="text-lg font-bold text-primary">Rs {vehicle.pricePerDay.toLocaleString()}<span className="text-xs">/day</span></span>
-            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">View Details <ChevronRight size={14} /></button>
+            <span className="text-lg font-bold text-primary">
+              Rs {formatPrice(vehicle.pricePerDay)}
+              <span className="text-xs">/day</span>
+            </span>
+            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">
+              View Details <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -142,7 +163,9 @@ const LandingPage = () => {
   };
 
   const renderPopularGuides = () => {
-    if (!guidesData?.length) return <p className="text-gray-500">Loading guides...</p>;
+    if (guidesLoading) return <p className="text-gray-500">Loading guides...</p>;
+    if (!guidesData?.length) return <p className="text-gray-500">No guides found</p>;
+
     return guidesData.map(guide => (
       <div key={guide.id} className="group bg-white rounded-xl shadow-lg p-5 text-center cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/guides/${guide.id}`)}>
         <img src={getImageUrl(guide.image)} alt={guide.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-primary group-hover:border-cta transition-colors" loading="lazy" />
@@ -150,17 +173,19 @@ const LandingPage = () => {
         <p className="text-xs text-gray-600">{guide.specialty}</p>
         <div className="flex items-center justify-center gap-1 mt-2">
           <Star size={14} className="text-cta fill-current" />
-          <span className="text-sm font-semibold">{guide.rating}</span>
+          <span className="text-sm font-semibold">{guide.rating?.toFixed(1) || 'N/A'}</span>
           <span className="text-xs text-gray-400">({guide.reviews || 0} reviews)</span>
         </div>
-        <button className="mt-3 text-accent hover:text-primary text-xs flex items-center justify-center gap-1 w-full">View Details <ChevronRight size={12} /></button>
+        <button className="mt-3 text-accent hover:text-primary text-xs flex items-center justify-center gap-1 w-full">
+          View Details <ChevronRight size={12} />
+        </button>
       </div>
     ));
   };
 
   return (
     <div>
-      {/* Hero Section – unchanged */}
+      {/* Hero Section */}
       <section className="relative h-[650px] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
           {backgroundImages.map((image, idx) => (
@@ -197,7 +222,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Stats Section – unchanged */}
+      {/* Stats Section */}
       <section className="py-12 bg-primary text-white">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
@@ -211,7 +236,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features Section – unchanged */}
+      {/* Features Section */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
@@ -233,7 +258,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Popular Hotels – now using real data */}
+      {/* Popular Hotels */}
       <section className="py-16 bg-cream">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
@@ -246,7 +271,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Popular Vehicles – real data */}
+      {/* Popular Vehicles */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
@@ -259,7 +284,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Popular Guides – real data */}
+      {/* Popular Guides */}
       <section className="py-16 bg-cream">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
@@ -272,7 +297,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Call to Action – unchanged */}
+      {/* Call to Action */}
       <section className="py-16 bg-gradient-to-r from-primary to-secondary text-white text-center">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold mb-4">Start Your Sri Lankan Journey Today</h2>

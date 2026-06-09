@@ -32,7 +32,6 @@ model Booking {
   user          User     @relation(fields: [userId], references: [id])
   type          String
   packageName   String?
-  destinations  Json?      // stores array of objects (district, places, guide, vehicle, hotel)
   startDate     DateTime
   endDate       DateTime
   numberOfDays  Int
@@ -42,89 +41,91 @@ model Booking {
   paymentStatus String   @default("unpaid")
   bookingDate   DateTime @default(now())
   confirmedAt   DateTime?
-  
-  cardLastFour    String?   // last 4 digits of card
-  cardType        String?   // "Visa", "Mastercard", etc.
-  paymentMethod   String?   // "card"
-  transactionId   String?    // for future use (optional)
+  cardLastFour  String?
+  cardType      String?
+  paymentMethod String?
+  transactionId String?
 
   @@index([userId])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([bookingDate])
 }
 
 model Vehicle {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  type          String
-  model         String
-  pricePerDay   Float
-  passengers    Int
-  fuelType      String?
-  fuelEfficiency String?
-  year          String?
-  insuranceIncluded Boolean @default(true)
-  supportHours  String   @default("24/7")
-  pickupLocations String[] @default([])
-  includedFeatures String[] @default([])
-  securityDeposit Float    @default(0)
-  depositRefundable Boolean @default(true)
-  rating        Float    @default(0)
-  location      String
-  district      String
-  status        String   @default("available")
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  tourPackages TourPackage[]
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  type              String
+  model             String
+  pricePerDay       Float
+  passengers        Int
+  fuelType          String?
+  fuelEfficiency    String?
+  year              String?
+  insuranceIncluded Boolean  @default(true)
+  supportHours      String   @default("24/7")
+  pickupLocations   String[]
+  includedFeatures  String[]
+  securityDeposit   Float    @default(0)
+  depositRefundable Boolean  @default(true)
+  rating            Float    @default(0)
+  location          String   // ← only one location field
+  district          String   // ← only one district field
+  status            String   @default("available")  // ← only one status field
+  image             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tourPackages      TourPackage[]
 
   @@index([district])
   @@index([type])
+  @@index([status])
 }
 
 
 
 model Hotel {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  location      String
-  district      String
-  pricePerNight Float
-  rating        Float    @default(0)
-  amenities     String[]   // now holds both amenities and what's included
-  image         String
-  popular       Boolean  @default(false)
-  checkIn       String   @default("2:00 PM")
-  checkOut      String   @default("12:00 PM")
-  freeCancellationHours Int @default(48)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  breakfastIncluded Boolean @default(false)
-  tourPackages TourPackage[]
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  name                   String
+  location               String    // ← only one location
+  district               String    // ← only one district
+  pricePerNight          Float
+  rating                 Float     @default(0)
+  amenities              String[]
+  image                  String
+  popular                Boolean   @default(false)
+  checkIn                String    @default("2:00 PM")
+  checkOut               String    @default("12:00 PM")
+  freeCancellationHours  Int       @default(48)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  breakfastIncluded      Boolean   @default(false)
+  tourPackages           TourPackage[]
 
   @@index([district])
-  @@index([popular])
+  @@index([rating])
 }
 
 model Guide {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   name          String
   specialty     String
-  district      String
-  location      String?
-  rating        Float    @default(0)
-  reviews       Int      @default(0)
+  district      String    // ← only one district
+  location      String?   // ← only one location
+  rating        Float     @default(0)
+  reviews       Int       @default(0)
   language      String?
   experience    String?
   certification String?
   pricePerDay   Float
-  popular       Boolean  @default(false)
-  description   String?  // NEW: "Why choose this guide?"
+  popular       Boolean   @default(false)
+  description   String?
   image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  tourPackages TourPackage[]
-  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tourPackages  TourPackage[]
+
   @@index([district])
-  @@index([specialty])
+  @@index([popular])
 }
 
 
@@ -176,26 +177,42 @@ model TourPackage {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   name          String
   description   String
-  duration      String   // e.g., "5 days"
-  location      String   // main destination
+  duration      String    // ← String, not Int
+  district      String
+  maxPeople     String    // ← String, not Int
+  bestSeason    String?
+  location      String
   price         Float
   rating        Float    @default(0)
   image         String
   popular       Boolean  @default(false)
-  mealPlan      String?  // e.g., "Breakfast & Dinner"
-  inclusions    String[] // array of strings like "Hotel", "Vehicle", "Guide", "Meals", "Sightseeing"
-  
-  // Relations - optional because a package may not include a hotel/vehicle/guide
+  mealPlan      String?
+  inclusions    String[]
   hotelId       String?  @db.ObjectId
   hotel         Hotel?   @relation(fields: [hotelId], references: [id])
   vehicleId     String?  @db.ObjectId
   vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
   guideId       String?  @db.ObjectId
   guide         Guide?   @relation(fields: [guideId], references: [id])
-  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
 
-  @@index([name])
-  @@index([popular])
+
+model District {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  places    Place[]
+}
+
+model Place {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  coordinates Json?    // store as [lng, lat] or {lat, lng}
+  districtId  String   @db.ObjectId
+  district    District @relation(fields: [districtId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

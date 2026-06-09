@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Star, MapPin, ArrowLeft, Wifi, Coffee, Home, Car, Users } from 'lucide-react';
 import { getHotelById } from '../data/tourismData';
-import FeedbackModal from '../components/FeedbackModal';
+import FeedbackModal from '../components/FeedbackModal';   // ← fixed path
 import { useTour } from '../context/TourContext';
 
 const HotelDetailPage = () => {

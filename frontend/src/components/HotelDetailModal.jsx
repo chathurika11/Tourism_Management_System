@@ -19,6 +19,11 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
 
   const amenities = hotel.amenities || [];
 
+  const formatPrice = (price) => {
+    if (price === undefined || price === null) return '0';
+    return price.toLocaleString();
+  };
+
   return (
     <>
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto animate-fadeIn">
@@ -32,7 +37,7 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
             <div className="flex items-center gap-2 text-gray-600 mb-4">
               <MapPin size={18} /> {hotel.location}
               <span className="ml-4 flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full">
-                <Star size={16} className="text-yellow-500 fill-current" /> {hotel.rating}
+                <Star size={16} className="text-yellow-500 fill-current" /> {hotel.rating?.toFixed(1) || 'N/A'}
               </span>
             </div>
             
@@ -62,7 +67,7 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-5 rounded-2xl mt-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Price per night</span>
-                <span className="text-3xl font-bold text-primary">Rs {hotel.pricePerNight.toLocaleString()}</span>
+                <span className="text-3xl font-bold text-primary">Rs {formatPrice(hotel.pricePerNight)}</span>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -85,7 +90,7 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
                       <span className="font-semibold text-primary">{fb.user?.name || 'Guest'}</span>
                       <div className="flex">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className={i < fb.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} />
+                          <Star key={i} size={14} className={i < (fb.rating || 0) ? 'text-yellow-400 fill-current' : 'text-gray-300'} />
                         ))}
                       </div>
                     </div>
@@ -104,7 +109,14 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
           </div>
         </div>
       </div>
-      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} onSubmit={onAddFeedback} itemName={hotel.name} itemId={hotel.id} type="hotel" />
+      <FeedbackModal 
+        isOpen={showFeedbackModal} 
+        onClose={() => setShowFeedbackModal(false)} 
+        onSubmit={onAddFeedback} 
+        itemName={hotel.name} 
+        itemId={hotel.id} 
+        type="hotel" 
+      />
     </>
   );
 };

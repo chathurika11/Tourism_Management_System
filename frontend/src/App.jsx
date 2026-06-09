@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
 
+
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center h-64">
     <div className="w-12 h-12 border-4 border-primary border-t-cta rounded-full animate-spin"></div>
@@ -107,7 +108,8 @@ function App() {
                     <Route path="feedbacks" element={<AdminFeedbacks />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="tour-packages" element={<AdminTourPackages />} />
-
+                    
+                    
                   </Route>
                 </Routes>
               </Suspense>

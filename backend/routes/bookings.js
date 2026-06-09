@@ -4,28 +4,16 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// NOTE: Add these fields to your Prisma Booking model before using this endpoint:
-//   cardLastFour    String?
-//   cardType        String?
-//   paymentMethod   String?
-//   transactionId   String?   (optional)
-// Then run: npx prisma generate && npx prisma db push
+function detectCardType(cardNumber) {
+  const first = cardNumber.charAt(0);
+  if (first === '4') return 'Visa';
+  if (first === '5') return 'Mastercard';
+  if (first === '3') return 'Amex';
+  if (first === '6') return 'Discover';
+  return 'Card';
+}
 
-const formatPrismaError = (error) => {
-  if (error.code === 'P2012') {
-    const missingField = error.meta?.path || 'unknown field';
-    return { status: 400, message: `Missing required field: ${missingField}. Please fill all required fields.` };
-  }
-  if (error.code === 'P2025') {
-    return { status: 404, message: 'Record not found.' };
-  }
-  console.error('Unhandled Prisma error:', error);
-  return { status: 500, message: 'Database error. Please try again.' };
-};
-
-// ---------- Existing CRUD endpoints ----------
-
-// Get all bookings (admin sees all, users see their own) – with pagination
+// Get all bookings (admin sees all, users see their own) with pagination
 router.get('/', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -41,7 +29,7 @@ router.get('/', async (req, res) => {
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
         where,
-        include: { user: true },
+        include: { user: true },  // includes full user details for admin
         orderBy: { bookingDate: 'desc' },
         skip,
         take: limit
@@ -56,28 +44,67 @@ router.get('/', async (req, res) => {
       totalPages: Math.ceil(total / limit)
     });
   } catch (error) {
-    const { status, message } = formatPrismaError(error);
-    res.status(status).json({ error: message });
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Create a booking
+// Create a booking with date validation
 router.post('/', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const { startDate, endDate, numberOfDays, passengers, totalAmount, type, packageName, status, paymentStatus } = req.body;
+
+    // Validate required fields
+    if (!startDate || !endDate || !numberOfDays || !passengers || totalAmount === undefined || !type) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Past date validation
+    if (start < today) {
+      return res.status(400).json({ error: 'Start date cannot be in the past' });
+    }
+    // 24‑hour advance validation
+    const hoursDiff = (start - now) / (1000 * 60 * 60);
+    if (hoursDiff < 24) {
+      return res.status(400).json({ error: 'Booking must be made at least 24 hours before the tour start date' });
+    }
+    if (end <= start) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
     const booking = await prisma.booking.create({
-      data: { ...req.body, userId: decoded.id, status: 'pending' }
+      data: {
+        type,
+        packageName: packageName || null,
+        startDate: start,
+        endDate: end,
+        numberOfDays: parseInt(numberOfDays),
+        passengers: parseInt(passengers),
+        totalAmount: parseFloat(totalAmount),
+        status: status || 'pending',
+        paymentStatus: paymentStatus || 'unpaid',
+        userId: decoded.id,
+        bookingDate: new Date(),
+      }
     });
-    res.json(booking);
+    res.status(201).json(booking);
   } catch (error) {
-    const { status, message } = formatPrismaError(error);
-    res.status(status).json({ error: message });
+    console.error('Booking creation error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Update booking (only owner or admin)
+// Update booking (owner or admin)
 router.put('/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -93,8 +120,8 @@ router.put('/:id', async (req, res) => {
     });
     res.json(updated);
   } catch (error) {
-    const { status, message } = formatPrismaError(error);
-    res.status(status).json({ error: message });
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -111,68 +138,88 @@ router.delete('/:id', async (req, res) => {
     await prisma.booking.delete({ where: { id: req.params.id } });
     res.json({ message: 'Deleted' });
   } catch (error) {
-    const { status, message } = formatPrismaError(error);
-    res.status(status).json({ error: message });
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ---------- NEW: Payment processing endpoint ----------
+// Payment processing endpoint
 router.post('/process', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const { bookingId, cardNumber, cardExpiry, cardCvv, cardHolder } = req.body;
-    
-    if (!bookingId || !cardNumber || !cardExpiry || !cardCvv || !cardHolder) {
-      return res.status(400).json({ error: 'Missing payment details' });
+    const { bookingId, paymentMethod, cardNumber, cardExpiry, cardCvv, cardHolder } = req.body;
+    if (!bookingId || !paymentMethod) {
+      return res.status(400).json({ error: 'Missing bookingId or paymentMethod' });
     }
 
-    // Verify that the booking belongs to the logged-in user (or admin can process any)
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
-    if (booking.userId !== decoded.id && decoded.role !== 'admin') {
+    if (booking.userId !== decoded.id && decoded.role !== 'admin')
       return res.status(403).json({ error: 'Forbidden' });
-    }
-    if (booking.paymentStatus === 'paid') {
-      return res.status(400).json({ error: 'Booking already paid' });
+    if (booking.paymentStatus === 'paid')
+      return res.status(400).json({ error: 'Already paid' });
+
+    let transactionId;
+    let updatedBooking;
+
+    if (paymentMethod === 'paypal') {
+      transactionId = 'PAYPAL_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      updatedBooking = await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'confirmed',
+          paymentStatus: 'paid',
+          paymentMethod: 'paypal',
+          confirmedAt: new Date(),
+          transactionId,
+        }
+      });
+      return res.json({ success: true, transactionId, booking: updatedBooking });
     }
 
-    // Simulate payment gateway (replace with Stripe/PayHere)
-    const transactionId = 'TXN_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-    
-    const lastFour = cardNumber.slice(-4);
-    const cardType = detectCardType(cardNumber);
-    
-    const updatedBooking = await prisma.booking.update({
+    // Card payment
+    if (!cardNumber || !cardExpiry || !cardCvv || !cardHolder) {
+      return res.status(400).json({ error: 'Missing card details' });
+    }
+    const rawCardNumber = cardNumber.replace(/\s/g, '');
+    if (rawCardNumber.length < 15 || rawCardNumber.length > 19) {
+      return res.status(400).json({ error: 'Invalid card number' });
+    }
+    if (!cardExpiry.match(/^\d{2}\/\d{2}$/)) {
+      return res.status(400).json({ error: 'Expiry must be MM/YY' });
+    }
+    if (!cardCvv.match(/^\d{3,4}$/)) {
+      return res.status(400).json({ error: 'CVV must be 3 or 4 digits' });
+    }
+    if (!cardHolder.trim()) {
+      return res.status(400).json({ error: 'Cardholder name is required' });
+    }
+
+    transactionId = 'TXN_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const lastFour = rawCardNumber.slice(-4);
+    const cardType = detectCardType(rawCardNumber);
+
+    updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'confirmed',
         paymentStatus: 'paid',
         cardLastFour: lastFour,
-        cardType: cardType,
+        cardType,
         paymentMethod: 'card',
         confirmedAt: new Date(),
-        transactionId: transactionId,   // optional – add to schema if needed
+        transactionId,
       }
     });
 
     res.json({ success: true, transactionId, booking: updatedBooking });
   } catch (error) {
     console.error('Payment error:', error);
-    res.status(500).json({ error: 'Payment processing failed. Please try again.' });
+    res.status(500).json({ error: 'Payment failed' });
   }
 });
-
-// Helper: detect card type from first digit(s)
-function detectCardType(cardNumber) {
-  const firstDigit = cardNumber.charAt(0);
-  if (firstDigit === '4') return 'Visa';
-  if (firstDigit === '5') return 'Mastercard';
-  if (firstDigit === '3') return 'Amex';
-  if (firstDigit === '6') return 'Discover';
-  return 'Card';
-}
 
 module.exports = router;

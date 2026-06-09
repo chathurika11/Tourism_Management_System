@@ -3,9 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
 import Select from 'react-select';
 import toast from 'react-hot-toast';
-import API, { getImageUrl } from '../../services/api'; 
-
-
+import API, { getImageUrl } from '../../services/api';
 
 const AdminTourPackages = () => {
   const queryClient = useQueryClient();
@@ -14,7 +12,6 @@ const AdminTourPackages = () => {
   const [editingPackage, setEditingPackage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  
   const [formData, setFormData] = useState({
     name: '',
     district: '',
@@ -22,21 +19,18 @@ const AdminTourPackages = () => {
     duration: '',
     maxPeople: '',
     bestSeason: '',
-    mealPlan: [],          // array of strings
-    inclusions: [],        // array of strings
+    mealPlan: [],
+    inclusions: [],
     price: '',
     popular: false,
-    hotelIds: [],          // array of hotel IDs
-    vehicleIds: [],        // array of vehicle IDs
-    guideIds: [],          // array of guide IDs
+    hotelIds: [],
+    vehicleIds: [],
+    guideIds: [],
   });
-
-  // Reference data for dropdowns
   const [availableHotels, setAvailableHotels] = useState([]);
   const [availableVehicles, setAvailableVehicles] = useState([]);
   const [availableGuides, setAvailableGuides] = useState([]);
 
-  // Options for multi-selects
   const mealPlanOptions = [
     { value: 'Breakfast', label: 'Breakfast' },
     { value: 'Lunch', label: 'Lunch' },
@@ -44,7 +38,6 @@ const AdminTourPackages = () => {
     { value: 'All Inclusive', label: 'All Inclusive' },
     { value: 'Half Board', label: 'Half Board' },
   ];
-
   const inclusionOptions = [
     { value: 'Transport', label: 'Transport' },
     { value: 'Hotel', label: 'Hotel' },
@@ -54,7 +47,6 @@ const AdminTourPackages = () => {
     { value: 'Meals', label: 'Meals' },
   ];
 
-  // Fetch packages
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['tour-packages-admin', page],
     queryFn: () => API.get(`/tour-packages?page=${page}&limit=10`).then(res => res.data),
@@ -63,7 +55,6 @@ const AdminTourPackages = () => {
   const packages = data?.data || [];
   const totalPages = data?.totalPages || 1;
 
-  // Fetch reference items when district changes
   useEffect(() => {
     if (formData.district) {
       API.get(`/tour-packages/reference/hotels/${formData.district}`).then(res => setAvailableHotels(res.data));
@@ -85,7 +76,7 @@ const AdminTourPackages = () => {
       toast.success('Package added');
       resetModal();
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to add package'),
   });
 
   const updateMutation = useMutation({
@@ -145,7 +136,9 @@ const AdminTourPackages = () => {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Delete this package?')) deleteMutation.mutate(id);
+    if (window.confirm('Delete this package? This action cannot be undone.')) {
+      deleteMutation.mutate(id);
+    }
   };
 
   const handleEdit = (pkg) => {
@@ -156,7 +149,7 @@ const AdminTourPackages = () => {
       description: pkg.description,
       duration: pkg.duration,
       maxPeople: pkg.maxPeople,
-      bestSeason: pkg.bestSeason,
+      bestSeason: pkg.bestSeason || '',
       mealPlan: pkg.mealPlan || [],
       inclusions: pkg.inclusions || [],
       price: pkg.price,
@@ -191,7 +184,6 @@ const AdminTourPackages = () => {
     });
   };
 
-  // Helper for duration: only numbers, display "days"
   const handleDurationChange = (e) => {
     const value = e.target.value.replace(/\D/g, '');
     setFormData({ ...formData, duration: value });
@@ -199,10 +191,9 @@ const AdminTourPackages = () => {
 
   if (isLoading) return <div className="text-center py-20">Loading packages...</div>;
 
-  // Map available items to react-select options
-  const hotelOptions = availableHotels.map(h => ({ value: h.id, label: h.name }));
-  const vehicleOptions = availableVehicles.map(v => ({ value: v.id, label: `${v.model} (${v.type})` }));
-  const guideOptions = availableGuides.map(g => ({ value: g.id, label: `${g.name} (${g.specialty})` }));
+  const hotelOptions = availableHotels.map(h => ({ value: h.id, label: `${h.name} (${h.district})` }));
+  const vehicleOptions = availableVehicles.map(v => ({ value: v.id, label: `${v.model} (${v.type} - ${v.district})` }));
+  const guideOptions = availableGuides.map(g => ({ value: g.id, label: `${g.name} (${g.specialty} - ${g.district})` }));
 
   return (
     <div>
@@ -213,7 +204,6 @@ const AdminTourPackages = () => {
         </button>
       </div>
 
-      {/* Packages Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {packages.map(pkg => (
           <div key={pkg.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition">
@@ -249,7 +239,6 @@ const AdminTourPackages = () => {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -263,20 +252,14 @@ const AdminTourPackages = () => {
                 <div><label className="block font-medium mb-1">District *</label>
                   <select value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} className="input-field" required>
                     <option value="">Select District</option>
-                    <option value="Colombo">Colombo</option>
-                    <option value="Kandy">Kandy</option>
-                    <option value="Galle">Galle</option>
-                    <option value="Ella">Ella</option>
-                    <option value="Nuwara Eliya">Nuwara Eliya</option>
-                    <option value="Sigiriya">Sigiriya</option>
-                    <option value="Anuradhapura">Anuradhapura</option>
-                    <option value="Polonnaruwa">Polonnaruwa</option>
-                    <option value="Yala">Yala</option>
-                    <option value="Trincomalee">Trincomalee</option>
+                    <option value="Colombo">Colombo</option><option value="Kandy">Kandy</option><option value="Galle">Galle</option>
+                    <option value="Ella">Ella</option><option value="Nuwara Eliya">Nuwara Eliya</option><option value="Sigiriya">Sigiriya</option>
+                    <option value="Anuradhapura">Anuradhapura</option><option value="Polonnaruwa">Polonnaruwa</option>
+                    <option value="Yala">Yala</option><option value="Trincomalee">Trincomalee</option>
                   </select>
                 </div>
                 <div><label className="block font-medium mb-1">Duration (days) *</label><input type="text" value={formData.duration} onChange={handleDurationChange} placeholder="e.g., 3" className="input-field" required />{formData.duration && <span className="text-xs text-gray-500">→ will show as "{formData.duration} days"</span>}</div>
-                <div><label className="block font-medium mb-1">Max People *</label><input type="number" value={formData.maxPeople} onChange={e => setFormData({...formData, maxPeople: e.target.value})} className="input-field" required /></div>
+                <div><label className="block font-medium mb-1">Max People *</label><input type="text" value={formData.maxPeople} onChange={e => setFormData({...formData, maxPeople: e.target.value})} className="input-field" required /></div>
                 <div><label className="block font-medium mb-1">Best Season</label><input type="text" value={formData.bestSeason} onChange={e => setFormData({...formData, bestSeason: e.target.value})} className="input-field" placeholder="e.g., December to March" /></div>
                 <div><label className="block font-medium mb-1">Price (Rs) *</label><input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="input-field" required /></div>
                 <div><label className="flex items-center gap-2 mt-6"><input type="checkbox" checked={formData.popular} onChange={e => setFormData({...formData, popular: e.target.checked})} className="w-4 h-4" /> Mark as Popular</label></div>
@@ -284,32 +267,27 @@ const AdminTourPackages = () => {
 
               <div><label className="block font-medium mb-1">Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="input-field" rows="3" required /></div>
 
-              {/* Multi-select: Meal Plan */}
               <div><label className="block font-medium mb-1">Meal Plan (multi-select)</label>
-                <Select isMulti options={mealPlanOptions} value={mealPlanOptions.filter(opt => formData.mealPlan.includes(opt.value))} onChange={(selected) => setFormData({...formData, mealPlan: selected.map(s => s.value)})} className="basic-multi-select" />
+                <Select isMulti options={mealPlanOptions} value={mealPlanOptions.filter(opt => formData.mealPlan.includes(opt.value))} onChange={(selected) => setFormData({...formData, mealPlan: selected.map(s => s.value)})} />
               </div>
-
-              {/* Multi-select: Inclusions */}
               <div><label className="block font-medium mb-1">Inclusions (multi-select)</label>
                 <Select isMulti options={inclusionOptions} value={inclusionOptions.filter(opt => formData.inclusions.includes(opt.value))} onChange={(selected) => setFormData({...formData, inclusions: selected.map(s => s.value)})} />
               </div>
 
-              {/* Dynamic multi-selects for hotels, vehicles, guides (only when district selected) */}
               {formData.district && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div><label className="block font-medium mb-1">Select Hotels (multiple)</label>
-                    <Select isMulti options={hotelOptions} value={hotelOptions.filter(opt => formData.hotelIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, hotelIds: selected.map(s => s.value)})} isDisabled={!formData.district} placeholder="Choose hotels..." />
+                    <Select isMulti options={hotelOptions} value={hotelOptions.filter(opt => formData.hotelIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, hotelIds: selected.map(s => s.value)})} placeholder="Choose hotels..." />
                   </div>
                   <div><label className="block font-medium mb-1">Select Vehicles (multiple)</label>
-                    <Select isMulti options={vehicleOptions} value={vehicleOptions.filter(opt => formData.vehicleIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, vehicleIds: selected.map(s => s.value)})} isDisabled={!formData.district} placeholder="Choose vehicles..." />
+                    <Select isMulti options={vehicleOptions} value={vehicleOptions.filter(opt => formData.vehicleIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, vehicleIds: selected.map(s => s.value)})} placeholder="Choose vehicles..." />
                   </div>
                   <div><label className="block font-medium mb-1">Select Guides (multiple)</label>
-                    <Select isMulti options={guideOptions} value={guideOptions.filter(opt => formData.guideIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, guideIds: selected.map(s => s.value)})} isDisabled={!formData.district} placeholder="Choose guides..." />
+                    <Select isMulti options={guideOptions} value={guideOptions.filter(opt => formData.guideIds.includes(opt.value))} onChange={(selected) => setFormData({...formData, guideIds: selected.map(s => s.value)})} placeholder="Choose guides..." />
                   </div>
                 </div>
               )}
 
-              {/* Image Upload */}
               <div><label className="block font-medium mb-1">Package Image (max 2MB)</label>
                 <div className="border-2 border-dashed rounded-lg p-4 text-center">
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="package-image" />
@@ -321,6 +299,7 @@ const AdminTourPackages = () => {
                 </div>
               </div>
 
+              <div className="bg-yellow-50 p-3 rounded-lg text-sm"><strong>Note:</strong> All selected hotels, vehicles, and guides belong to the chosen district.</div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={resetModal} className="btn-outline flex-1">Cancel</button>
                 <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary flex-1 flex items-center justify-center gap-2">
