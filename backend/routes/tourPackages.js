@@ -33,9 +33,20 @@ router.get('/', async (req, res) => {
       prisma.tourPackage.findMany({
         where,
         select: {
-          id: true, name: true, description: true, duration: true, district: true,
-          maxPeople: true, bestSeason: true, price: true, rating: true, image: true,
-          popular: true, mealPlan: true, inclusions: true,
+          id: true,
+          name: true,
+          description: true,
+          duration: true,
+          district: true,
+          maxPeople: true,
+          bestSeason: true,
+          price: true,
+          rating: true,
+          image: true,
+          popular: true,
+          mealPlan: true,
+          inclusions: true,
+          // include hotel/vehicle/guide only if needed for display
           hotel: { select: { id: true, name: true } },
           vehicle: { select: { id: true, model: true, type: true } },
           guide: { select: { id: true, name: true, specialty: true } },
@@ -62,7 +73,7 @@ router.get('/:id', async (req, res) => {
   res.json(pkg);
 });
 
-// ---------- REFERENCE endpoints (used by admin form) ----------
+// Reference endpoints (unchanged but ensure they use indexes)
 router.get('/reference/hotels/:district', adminOnly, async (req, res) => {
   const hotels = await prisma.hotel.findMany({
     where: { district: req.params.district },
@@ -103,9 +114,9 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
     const data = {
       name: req.body.name,
       description: req.body.description,
-      duration: req.body.duration,                     // keep as string
+      duration: req.body.duration,                    // string, no parseInt
       district: req.body.district,
-      maxPeople: req.body.maxPeople,                   // keep as string
+      maxPeople: req.body.maxPeople,                  // string, no parseInt
       bestSeason: req.body.bestSeason || null,
       location: req.body.district,
       price: parseFloat(req.body.price),
