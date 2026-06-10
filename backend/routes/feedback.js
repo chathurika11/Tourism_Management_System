@@ -43,12 +43,15 @@ router.post('/hotel', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 router.get('/hotel/:hotelId', async (req, res) => {
-  const feedbacks = await prisma.hotelFeedback.findMany({
-    where: { hotelId: req.params.hotelId },
-    include: { user: { select: { name: true } } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(feedbacks);
+  try {
+    const feedbacks = await prisma.hotelFeedback.findMany({
+      where: { hotelId: req.params.hotelId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(feedbacks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 router.get('/hotel/all', adminOnly, async (req, res) => {
   const feedbacks = await prisma.hotelFeedback.findMany({
@@ -79,12 +82,15 @@ router.post('/guide', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 router.get('/guide/:guideId', async (req, res) => {
-  const feedbacks = await prisma.guideFeedback.findMany({
-    where: { guideId: req.params.guideId },
-    include: { user: { select: { name: true } } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(feedbacks);
+  try {
+    const feedbacks = await prisma.guideFeedback.findMany({
+      where: { guideId: req.params.guideId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(feedbacks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 router.get('/guide/all', adminOnly, async (req, res) => {
   const feedbacks = await prisma.guideFeedback.findMany({
@@ -115,12 +121,15 @@ router.post('/vehicle', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 router.get('/vehicle/:vehicleId', async (req, res) => {
-  const feedbacks = await prisma.vehicleFeedback.findMany({
-    where: { vehicleId: req.params.vehicleId },
-    include: { user: { select: { name: true } } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(feedbacks);
+  try {
+    const feedbacks = await prisma.vehicleFeedback.findMany({
+      where: { vehicleId: req.params.vehicleId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(feedbacks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 router.get('/vehicle/all', adminOnly, async (req, res) => {
   const feedbacks = await prisma.vehicleFeedback.findMany({
@@ -151,12 +160,15 @@ router.post('/tour', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 router.get('/tour/:tourId', async (req, res) => {
-  const feedbacks = await prisma.tourFeedback.findMany({
-    where: { tourId: req.params.tourId },
-    include: { user: { select: { name: true } } },
-    orderBy: { createdAt: 'desc' }
-  });
-  res.json(feedbacks);
+  try {
+    const feedbacks = await prisma.tourFeedback.findMany({
+      where: { tourId: req.params.tourId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(feedbacks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 router.get('/tour/all', adminOnly, async (req, res) => {
   const feedbacks = await prisma.tourFeedback.findMany({

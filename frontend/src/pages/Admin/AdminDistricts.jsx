@@ -5,9 +5,11 @@ import API from '../../services/api';
 
 const AdminDistricts = () => {
   const [districts, setDistricts] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  const [showDistrictModal, setShowDistrictModal] = useState(false);
   const [editingDistrict, setEditingDistrict] = useState(null);
   const [districtName, setDistrictName] = useState('');
+  const [showPlaceModal, setShowPlaceModal] = useState(false);
+  const [currentDistrictId, setCurrentDistrictId] = useState(null);
   const [editingPlace, setEditingPlace] = useState(null);
   const [placeName, setPlaceName] = useState('');
   const [placeCoords, setPlaceCoords] = useState('');
@@ -29,7 +31,7 @@ const AdminDistricts = () => {
       toast.success('District created');
     }
     fetchDistricts();
-    setShowModal(false);
+    setShowDistrictModal(false);
     setDistrictName('');
     setEditingDistrict(null);
   };
@@ -42,13 +44,13 @@ const AdminDistricts = () => {
     }
   };
 
-  const handleAddPlace = async (districtId) => {
+  const handleSavePlace = async () => {
     if (!placeName.trim()) return toast.error('Place name required');
     let coords = null;
     if (placeCoords) {
       const parts = placeCoords.split(',').map(Number);
       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        coords = [parts[0], parts[1]];
+        coords = [parts[0], parts[1]]; // [lat, lng]
       } else {
         toast.error('Coordinates must be two numbers separated by comma (e.g., 6.9271,79.8612)');
         return;
@@ -58,20 +60,22 @@ const AdminDistricts = () => {
       await API.put(`/districts/places/${editingPlace.id}`, { name: placeName, coordinates: coords });
       toast.success('Place updated');
     } else {
-      await API.post('/districts/places', { name: placeName, coordinates: coords, districtId });
+      await API.post('/districts/places', { name: placeName, coordinates: coords, districtId: currentDistrictId });
       toast.success('Place added');
     }
     fetchDistricts();
+    setShowPlaceModal(false);
     setEditingPlace(null);
     setPlaceName('');
     setPlaceCoords('');
+    setCurrentDistrictId(null);
   };
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-primary">Manage Destinations (Districts & Places)</h1>
-        <button onClick={() => { setEditingDistrict(null); setDistrictName(''); setShowModal(true); }} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setEditingDistrict(null); setDistrictName(''); setShowDistrictModal(true); }} className="btn-primary flex items-center gap-2">
           <Plus size={18} /> Add District
         </button>
       </div>
@@ -81,8 +85,9 @@ const AdminDistricts = () => {
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-xl font-bold text-primary">{district.name}</h2>
               <div className="flex gap-2">
-                <button onClick={() => { setEditingDistrict(district); setDistrictName(district.name); setShowModal(true); }} className="text-blue-600"><Edit2 size={18} /></button>
+                <button onClick={() => { setEditingDistrict(district); setDistrictName(district.name); setShowDistrictModal(true); }} className="text-blue-600"><Edit2 size={18} /></button>
                 <button onClick={() => handleDeleteDistrict(district.id)} className="text-red-600"><Trash2 size={18} /></button>
+                <button onClick={() => { setCurrentDistrictId(district.id); setEditingPlace(null); setPlaceName(''); setPlaceCoords(''); setShowPlaceModal(true); }} className="text-green-600"><Plus size={18} /></button>
               </div>
             </div>
             <div className="ml-4">
@@ -90,30 +95,41 @@ const AdminDistricts = () => {
               <div className="space-y-2">
                 {district.places.map(place => (
                   <div key={place.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                    <div><span>{place.name}</span>{place.coordinates && <span className="text-xs text-gray-500 ml-2">({place.coordinates.join(', ')})</span>}</div>
+                    <div>
+                      <span>{place.name}</span>
+                      {place.coordinates && <span className="text-xs text-gray-500 ml-2">({place.coordinates.join(', ')})</span>}
+                    </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setEditingPlace(place); setPlaceName(place.name); setPlaceCoords(place.coordinates ? place.coordinates.join(',') : ''); }} className="text-blue-600"><Edit2 size={14} /></button>
+                      <button onClick={() => { setEditingPlace(place); setPlaceName(place.name); setPlaceCoords(place.coordinates ? place.coordinates.join(',') : ''); setCurrentDistrictId(district.id); setShowPlaceModal(true); }} className="text-blue-600"><Edit2 size={14} /></button>
                       <button onClick={async () => { if (window.confirm('Delete place?')) { await API.delete(`/districts/places/${place.id}`); fetchDistricts(); } }} className="text-red-600"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex gap-2">
-                <input type="text" placeholder="Place name" value={placeName} onChange={e => setPlaceName(e.target.value)} className="input-field text-sm" />
-                <input type="text" placeholder="Coordinates (lat,lng)" value={placeCoords} onChange={e => setPlaceCoords(e.target.value)} className="input-field text-sm" />
-                <button onClick={() => handleAddPlace(district.id)} className="btn-primary text-sm px-3 py-1">{editingPlace ? 'Update' : 'Add Place'}</button>
-                {editingPlace && <button onClick={() => { setEditingPlace(null); setPlaceName(''); setPlaceCoords(''); }} className="btn-outline text-sm">Cancel</button>}
-              </div>
             </div>
           </div>
         ))}
       </div>
-      {showModal && (
+
+      {/* District Modal */}
+      {showDistrictModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-96">
-            <div className="flex justify-between mb-4"><h2 className="text-xl font-bold">{editingDistrict ? 'Edit District' : 'New District'}</h2><button onClick={() => setShowModal(false)}><X size={24} /></button></div>
+            <div className="flex justify-between mb-4"><h2 className="text-xl font-bold">{editingDistrict ? 'Edit District' : 'New District'}</h2><button onClick={() => setShowDistrictModal(false)}><X size={24} /></button></div>
             <input type="text" value={districtName} onChange={e => setDistrictName(e.target.value)} placeholder="District name" className="input-field mb-4" />
-            <div className="flex gap-3"><button onClick={() => setShowModal(false)} className="btn-outline flex-1">Cancel</button><button onClick={handleSaveDistrict} className="btn-primary flex-1">Save</button></div>
+            <div className="flex gap-3"><button onClick={() => setShowDistrictModal(false)} className="btn-outline flex-1">Cancel</button><button onClick={handleSaveDistrict} className="btn-primary flex-1">Save</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Place Modal */}
+      {showPlaceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-96">
+            <div className="flex justify-between mb-4"><h2 className="text-xl font-bold">{editingPlace ? 'Edit Place' : 'Add Place'}</h2><button onClick={() => { setShowPlaceModal(false); setEditingPlace(null); }}><X size={24} /></button></div>
+            <input type="text" value={placeName} onChange={e => setPlaceName(e.target.value)} placeholder="Place name" className="input-field mb-3" />
+            <input type="text" value={placeCoords} onChange={e => setPlaceCoords(e.target.value)} placeholder="Coordinates (lat, lng) - optional" className="input-field mb-4" />
+            <div className="flex gap-3"><button onClick={() => { setShowPlaceModal(false); setEditingPlace(null); }} className="btn-outline flex-1">Cancel</button><button onClick={handleSavePlace} className="btn-primary flex-1">Save</button></div>
           </div>
         </div>
       )}

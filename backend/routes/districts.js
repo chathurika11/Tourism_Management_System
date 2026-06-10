@@ -18,7 +18,7 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-// GET all districts with places (public)
+// ---------- PUBLIC: get all districts with places ----------
 router.get('/', async (req, res) => {
   const districts = await prisma.district.findMany({
     include: { places: true },
@@ -27,17 +27,7 @@ router.get('/', async (req, res) => {
   res.json(districts);
 });
 
-// GET single district with places
-router.get('/:id', async (req, res) => {
-  const district = await prisma.district.findUnique({
-    where: { id: req.params.id },
-    include: { places: true }
-  });
-  if (!district) return res.status(404).json({ error: 'District not found' });
-  res.json(district);
-});
-
-// POST create district (admin only)
+// ---------- ADMIN: create district ----------
 router.post('/', adminOnly, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -45,7 +35,7 @@ router.post('/', adminOnly, async (req, res) => {
   res.status(201).json(district);
 });
 
-// PUT update district (admin only)
+// ---------- ADMIN: update district ----------
 router.put('/:id', adminOnly, async (req, res) => {
   const { name } = req.body;
   const district = await prisma.district.update({
@@ -55,14 +45,13 @@ router.put('/:id', adminOnly, async (req, res) => {
   res.json(district);
 });
 
-// DELETE district (admin only)
+// ---------- ADMIN: delete district (cascades places) ----------
 router.delete('/:id', adminOnly, async (req, res) => {
   await prisma.district.delete({ where: { id: req.params.id } });
   res.json({ message: 'Deleted' });
 });
 
-// ---------- Places ----------
-// Create place (admin only)
+// ---------- ADMIN: create place ----------
 router.post('/places', adminOnly, async (req, res) => {
   const { name, coordinates, districtId } = req.body;
   if (!name || !districtId) return res.status(400).json({ error: 'Missing fields' });
@@ -72,7 +61,7 @@ router.post('/places', adminOnly, async (req, res) => {
   res.status(201).json(place);
 });
 
-// Update place
+// ---------- ADMIN: update place ----------
 router.put('/places/:id', adminOnly, async (req, res) => {
   const { name, coordinates } = req.body;
   const place = await prisma.place.update({
@@ -82,7 +71,7 @@ router.put('/places/:id', adminOnly, async (req, res) => {
   res.json(place);
 });
 
-// Delete place
+// ---------- ADMIN: delete place ----------
 router.delete('/places/:id', adminOnly, async (req, res) => {
   await prisma.place.delete({ where: { id: req.params.id } });
   res.json({ message: 'Deleted' });

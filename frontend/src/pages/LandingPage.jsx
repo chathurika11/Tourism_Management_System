@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Star, Compass, Award, Clock, Shield, ChevronRight, Hotel, ArrowRight } from 'lucide-react';
+import { Search, Star, MapPin, Car, Users, Compass, Award, Clock, Shield, Hotel, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
 import home1 from '../images/home1.jpeg';
@@ -13,7 +13,6 @@ import home6 from '../images/home6.jpeg';
 
 const backgroundImages = [home1, home2, home3, home4, home5, home6];
 
-// Helper to get full image URL
 const getImageUrl = (path) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
@@ -21,18 +20,12 @@ const getImageUrl = (path) => {
   return `http://localhost:5000/${cleanPath}`;
 };
 
-// Helper to safely format numbers
-const formatPrice = (price) => {
-  if (price === undefined || price === null) return '0';
-  return price.toLocaleString();
-};
+const formatPrice = (price) => (price === undefined || price === null) ? '0' : price.toLocaleString();
 
 const LandingPage = () => {
-  const navigate = useNavigate();
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Background slideshow
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentBgIndex((prev) => (prev + 1) % backgroundImages.length);
@@ -40,7 +33,7 @@ const LandingPage = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch top rated hotels (limit 3, sorted by rating desc)
+  // Fetch top rated hotels (limit 3)
   const { data: hotelsData, isLoading: hotelsLoading } = useQuery({
     queryKey: ['home-hotels'],
     queryFn: async () => {
@@ -54,7 +47,7 @@ const LandingPage = () => {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch top rated vehicles
+  // Fetch top rated vehicles (limit 3)
   const { data: vehiclesData, isLoading: vehiclesLoading } = useQuery({
     queryKey: ['home-vehicles'],
     queryFn: async () => {
@@ -68,7 +61,7 @@ const LandingPage = () => {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch top rated guides
+  // Fetch top rated guides (limit 4)
   const { data: guidesData, isLoading: guidesLoading } = useQuery({
     queryKey: ['home-guides'],
     queryFn: async () => {
@@ -78,6 +71,20 @@ const LandingPage = () => {
         .filter(g => g.rating !== undefined)
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 4);
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Fetch top rated tour packages (limit 3)
+  const { data: packagesData, isLoading: packagesLoading } = useQuery({
+    queryKey: ['home-packages'],
+    queryFn: async () => {
+      const res = await API.get('/tour-packages?page=1&limit=10');
+      const packages = res.data?.data || [];
+      return packages
+        .filter(p => p.price !== undefined && p.rating !== undefined)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 3);
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -105,9 +112,8 @@ const LandingPage = () => {
   const renderPopularHotels = () => {
     if (hotelsLoading) return <p className="text-gray-500">Loading hotels...</p>;
     if (!hotelsData?.length) return <p className="text-gray-500">No hotels found</p>;
-
     return hotelsData.map(hotel => (
-      <div key={hotel.id} className="group bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/hotels/${hotel.id}`)}>
+      <div key={hotel.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
           <div className="flex justify-between items-start">
@@ -116,17 +122,9 @@ const LandingPage = () => {
               <Star size={12} className="text-cta fill-current" /> {hotel.rating?.toFixed(1) || 'N/A'}
             </div>
           </div>
-          <div className="flex items-center gap-1 text-gray-500 text-sm my-2">
-            <Hotel size={14} /> {hotel.location || 'N/A'}
-          </div>
+          <div className="flex items-center gap-1 text-gray-500 text-sm my-2"><Hotel size={14} /> {hotel.location || 'N/A'}</div>
           <div className="flex justify-between items-center mt-3">
-            <span className="text-lg font-bold text-primary">
-              Rs {formatPrice(hotel.pricePerNight)}
-              <span className="text-xs">/night</span>
-            </span>
-            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">
-              View Details <ChevronRight size={14} />
-            </button>
+            <span className="text-lg font-bold text-primary">Rs {formatPrice(hotel.pricePerNight)}<span className="text-xs">/night</span></span>
           </div>
         </div>
       </div>
@@ -136,9 +134,8 @@ const LandingPage = () => {
   const renderPopularVehicles = () => {
     if (vehiclesLoading) return <p className="text-gray-500">Loading vehicles...</p>;
     if (!vehiclesData?.length) return <p className="text-gray-500">No vehicles found</p>;
-
     return vehiclesData.map(vehicle => (
-      <div key={vehicle.id} className="group bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/vehicles/${vehicle.id}`)}>
+      <div key={vehicle.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
           <div className="flex justify-between items-start">
@@ -149,13 +146,7 @@ const LandingPage = () => {
           </div>
           <p className="text-gray-500 text-sm my-2">{vehicle.type} • {vehicle.location}</p>
           <div className="flex justify-between items-center mt-3">
-            <span className="text-lg font-bold text-primary">
-              Rs {formatPrice(vehicle.pricePerDay)}
-              <span className="text-xs">/day</span>
-            </span>
-            <button className="text-accent hover:text-primary text-sm flex items-center gap-1">
-              View Details <ChevronRight size={14} />
-            </button>
+            <span className="text-lg font-bold text-primary">Rs {formatPrice(vehicle.pricePerDay)}<span className="text-xs">/day</span></span>
           </div>
         </div>
       </div>
@@ -165,9 +156,8 @@ const LandingPage = () => {
   const renderPopularGuides = () => {
     if (guidesLoading) return <p className="text-gray-500">Loading guides...</p>;
     if (!guidesData?.length) return <p className="text-gray-500">No guides found</p>;
-
     return guidesData.map(guide => (
-      <div key={guide.id} className="group bg-white rounded-xl shadow-lg p-5 text-center cursor-pointer transform hover:scale-105 transition-all duration-300" onClick={() => navigate(`/guides/${guide.id}`)}>
+      <div key={guide.id} className="group bg-white rounded-xl shadow-lg p-5 text-center transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(guide.image)} alt={guide.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-primary group-hover:border-cta transition-colors" loading="lazy" />
         <h3 className="font-bold text-primary">{guide.name}</h3>
         <p className="text-xs text-gray-600">{guide.specialty}</p>
@@ -176,9 +166,28 @@ const LandingPage = () => {
           <span className="text-sm font-semibold">{guide.rating?.toFixed(1) || 'N/A'}</span>
           <span className="text-xs text-gray-400">({guide.reviews || 0} reviews)</span>
         </div>
-        <button className="mt-3 text-accent hover:text-primary text-xs flex items-center justify-center gap-1 w-full">
-          View Details <ChevronRight size={12} />
-        </button>
+      </div>
+    ));
+  };
+
+  const renderPopularPackages = () => {
+    if (packagesLoading) return <p className="text-gray-500">Loading tour packages...</p>;
+    if (!packagesData?.length) return <p className="text-gray-500">No tour packages found</p>;
+    return packagesData.map(pkg => (
+      <div key={pkg.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
+        <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+        <div className="p-5">
+          <div className="flex justify-between items-start">
+            <h3 className="font-bold text-lg text-primary">{pkg.name}</h3>
+            <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+              <Star size={12} className="text-cta fill-current" /> {pkg.rating?.toFixed(1) || 'N/A'}
+            </div>
+          </div>
+          <p className="text-gray-500 text-sm my-2"><MapPin size={14} className="inline mr-1" />{pkg.district}</p>
+          <div className="flex justify-between items-center mt-3">
+            <span className="text-lg font-bold text-primary">Rs {formatPrice(pkg.price)}<span className="text-xs">/package</span></span>
+          </div>
+        </div>
       </div>
     ));
   };
@@ -258,42 +267,47 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Popular Hotels */}
+      {/* Popular Tour Packages */}
       <section className="py-16 bg-cream">
+        <div className="container mx-auto px-4">
+          <div className="flex justify-between items-center mb-12">
+            <div><h2 className="text-3xl font-bold text-primary">Popular Tour Packages</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
+            <Link to="/tours" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularPackages()}</div>
+        </div>
+      </section>
+
+      {/* Popular Hotels */}
+      <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
             <div><h2 className="text-3xl font-bold text-primary">Popular Hotels</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
             <Link to="/hotels" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {renderPopularHotels()}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularHotels()}</div>
         </div>
       </section>
 
-      {/* Popular Vehicles */}
-      <section className="py-16 bg-white">
+      {/* Vehicles for Rent */}
+      <section className="py-16 bg-cream">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
             <div><h2 className="text-3xl font-bold text-primary">Vehicles for Rent</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
             <Link to="/vehicles" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {renderPopularVehicles()}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularVehicles()}</div>
         </div>
       </section>
 
-      {/* Popular Guides */}
-      <section className="py-16 bg-cream">
+      {/* Expert Tour Guides */}
+      <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
             <div><h2 className="text-3xl font-bold text-primary">Expert Tour Guides</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
             <Link to="/guides" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {renderPopularGuides()}
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">{renderPopularGuides()}</div>
         </div>
       </section>
 

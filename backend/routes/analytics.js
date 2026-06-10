@@ -4,91 +4,178 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Helper to get user role from token
-const getRole = (req) => {
+// Helper
+const getUserId = (req) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded.role;
-  } catch {
-    return null;
-  }
+    return decoded.id;
+  } catch { return null; }
 };
 
-// Admin only middleware
-const adminOnly = async (req, res, next) => {
-  const role = getRole(req);
-  if (role !== 'admin') {
-    return res.status(403).json({ error: 'Admin only' });
-  }
-  next();
-};
-
-// GET /api/analytics/commission-summary
-router.get('/commission-summary', adminOnly, async (req, res) => {
+const adminOnly = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
-    const allConfirmedBookings = await prisma.booking.findMany({
-      where: { status: 'confirmed' },
-      select: { totalAmount: true, startDate: true, confirmedAt: true }
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    req.user = decoded;
+    next();
+  } catch { res.status(401).json({ error: 'Invalid token' }); }
+};
 
-    let totalCommission = 0;
-    const monthlyCommission = {};
-
-    for (const booking of allConfirmedBookings) {
-      // Assume 22% commission for demo (adjust as needed)
-      const commission = booking.totalAmount * 0.22;
-      totalCommission += commission;
-
-      const month = booking.confirmedAt
-        ? booking.confirmedAt.toLocaleString('default', { month: 'short' })
-        : new Date(booking.startDate).toLocaleString('default', { month: 'short' });
-      monthlyCommission[month] = (monthlyCommission[month] || 0) + commission;
-    }
-
-    res.json({ totalCommission, monthlyCommission });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch commission summary' });
-  }
+// ---------- Submit Feedback (logged-in users only) ----------
+router.post('/hotel', async (req, res) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { hotelId, rating, comment } = req.body;
+  if (!hotelId || !rating || !comment) return res.status(400).json({ error: 'Missing fields' });
+  try {
+    await prisma.hotelFeedback.create({ data: { hotelId, userId, rating: parseInt(rating), comment } });
+    const feedbacks = await prisma.hotelFeedback.findMany({ where: { hotelId } });
+    const avgRating = feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length;
+    await prisma.hotel.update({ where: { id: hotelId }, data: { rating: parseFloat(avgRating.toFixed(1)) } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/analytics/reports – counts of booked hotels, vehicles, guides
-router.get('/reports', adminOnly, async (req, res) => {
+router.post('/guide', async (req, res) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { guideId, rating, comment } = req.body;
   try {
-    // This is a simplified aggregation. For actual counts, you would need to store
-    // which hotel/vehicle/guide was booked. Here we assume bookings have a `destinations` JSON field
-    // that contains the selected items. For demo, we return counts from all bookings.
+    await prisma.guideFeedback.create({ data: { guideId, userId, rating: parseInt(rating), comment } });
+    const feedbacks = await prisma.guideFeedback.findMany({ where: { guideId } });
+    const avgRating = feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length;
+    await prisma.guide.update({ where: { id: guideId }, data: { rating: parseFloat(avgRating.toFixed(1)), reviews: feedbacks.length } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    const bookings = await prisma.booking.findMany({
-      select: { destinations: true }
+router.post('/vehicle', async (req, res) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { vehicleId, rating, comment } = req.body;
+  try {
+    await prisma.vehicleFeedback.create({ data: { vehicleId, userId, rating: parseInt(rating), comment } });
+    const feedbacks = await prisma.vehicleFeedback.findMany({ where: { vehicleId } });
+    const avgRating = feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length;
+    await prisma.vehicle.update({ where: { id: vehicleId }, data: { rating: parseFloat(avgRating.toFixed(1)) } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/tour', async (req, res) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { tourId, rating, comment } = req.body;
+  try {
+    await prisma.tourFeedback.create({ data: { tourId, userId, rating: parseInt(rating), comment } });
+    const feedbacks = await prisma.tourFeedback.findMany({ where: { tourId } });
+    const avgRating = feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length;
+    await prisma.tourPackage.update({ where: { id: tourId }, data: { rating: parseFloat(avgRating.toFixed(1)) } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------- Public Get Feedbacks (no user details) ----------
+router.get('/hotel/:hotelId', async (req, res) => {
+  try {
+    const feedbacks = await prisma.hotelFeedback.findMany({ where: { hotelId: req.params.hotelId }, orderBy: { createdAt: 'desc' } });
+    res.json(feedbacks);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.get('/guide/:guideId', async (req, res) => {
+  const feedbacks = await prisma.guideFeedback.findMany({ where: { guideId: req.params.guideId }, orderBy: { createdAt: 'desc' } });
+  res.json(feedbacks);
+});
+router.get('/vehicle/:vehicleId', async (req, res) => {
+  const feedbacks = await prisma.vehicleFeedback.findMany({ where: { vehicleId: req.params.vehicleId }, orderBy: { createdAt: 'desc' } });
+  res.json(feedbacks);
+});
+router.get('/tour/:tourId', async (req, res) => {
+  const feedbacks = await prisma.tourFeedback.findMany({ where: { tourId: req.params.tourId }, orderBy: { createdAt: 'desc' } });
+  res.json(feedbacks);
+});
+
+// ---------- Admin Get All Feedbacks (with user info) ----------
+router.get('/hotel/all', adminOnly, async (req, res) => {
+  const feedbacks = await prisma.hotelFeedback.findMany({
+    include: { user: { select: { id: true, name: true, email: true } }, hotel: { select: { id: true, name: true, image: true } } },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(feedbacks);
+});
+router.get('/guide/all', adminOnly, async (req, res) => {
+  const feedbacks = await prisma.guideFeedback.findMany({
+    include: { user: { select: { id: true, name: true, email: true } }, guide: { select: { id: true, name: true, image: true } } },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(feedbacks);
+});
+router.get('/vehicle/all', adminOnly, async (req, res) => {
+  const feedbacks = await prisma.vehicleFeedback.findMany({
+    include: { user: { select: { id: true, name: true, email: true } }, vehicle: { select: { id: true, model: true, image: true } } },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(feedbacks);
+});
+router.get('/tour/all', adminOnly, async (req, res) => {
+  const feedbacks = await prisma.tourFeedback.findMany({
+    include: { user: { select: { id: true, name: true, email: true } }, tour: { select: { id: true, name: true, image: true } } },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(feedbacks);
+});
+
+// ---------- Admin Reply to Feedback ----------
+router.put('/hotel/:id/reply', adminOnly, async (req, res) => {
+  const { reply } = req.body;
+  const updated = await prisma.hotelFeedback.update({ where: { id: req.params.id }, data: { reply, repliedAt: new Date() } });
+  res.json(updated);
+});
+router.put('/guide/:id/reply', adminOnly, async (req, res) => {
+  const updated = await prisma.guideFeedback.update({ where: { id: req.params.id }, data: { reply: req.body.reply, repliedAt: new Date() } });
+  res.json(updated);
+});
+router.put('/vehicle/:id/reply', adminOnly, async (req, res) => {
+  const updated = await prisma.vehicleFeedback.update({ where: { id: req.params.id }, data: { reply: req.body.reply, repliedAt: new Date() } });
+  res.json(updated);
+});
+router.put('/tour/:id/reply', adminOnly, async (req, res) => {
+  const updated = await prisma.tourFeedback.update({ where: { id: req.params.id }, data: { reply: req.body.reply, repliedAt: new Date() } });
+  res.json(updated);
+});
+
+// ---------- Customer: Get My Feedbacks (with replies) ----------
+router.get('/my-feedbacks', async (req, res) => {
+  const userId = getUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const hotelFeedbacks = await prisma.hotelFeedback.findMany({
+      where: { userId },
+      include: { hotel: { select: { name: true, image: true } } },
+      orderBy: { createdAt: 'desc' }
     });
-
-    let hotelCounts = {};
-    let vehicleCounts = {};
-    let guideCounts = {};
-
-    bookings.forEach(booking => {
-      if (booking.destinations && Array.isArray(booking.destinations)) {
-        booking.destinations.forEach(dest => {
-          if (dest.hotel && dest.hotel.name) {
-            hotelCounts[dest.hotel.name] = (hotelCounts[dest.hotel.name] || 0) + 1;
-          }
-          if (dest.vehicle && dest.vehicle.model) {
-            vehicleCounts[dest.vehicle.model] = (vehicleCounts[dest.vehicle.model] || 0) + 1;
-          }
-          if (dest.guide && dest.guide.name) {
-            guideCounts[dest.guide.name] = (guideCounts[dest.guide.name] || 0) + 1;
-          }
-        });
-      }
+    const guideFeedbacks = await prisma.guideFeedback.findMany({
+      where: { userId },
+      include: { guide: { select: { name: true, image: true } } },
+      orderBy: { createdAt: 'desc' }
     });
-
-    res.json({ hotelCounts, vehicleCounts, guideCounts });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch reports' });
+    const vehicleFeedbacks = await prisma.vehicleFeedback.findMany({
+      where: { userId },
+      include: { vehicle: { select: { model: true, image: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    const tourFeedbacks = await prisma.tourFeedback.findMany({
+      where: { userId },
+      include: { tour: { select: { name: true, image: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ hotelFeedbacks, guideFeedbacks, vehicleFeedbacks, tourFeedbacks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
