@@ -18,28 +18,42 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-// GET all vehicles (public) – with pagination
+// GET vehicles – with optional district filter and pagination
 router.get('/', async (req, res) => {
   try {
+    const { district } = req.query;
+
+    if (district) {
+      const vehicles = await prisma.vehicle.findMany({
+        where: { district: { equals: district, mode: 'insensitive' } },
+        orderBy: { rating: 'desc' }
+      });
+      return res.json(vehicles);
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
+
     const [vehicles, total] = await Promise.all([
       prisma.vehicle.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
       prisma.vehicle.count()
     ]);
+
     res.json({ data: vehicles, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// GET single vehicle
 router.get('/:id', async (req, res) => {
   const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
   if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
   res.json(vehicle);
 });
 
+// POST create vehicle (admin only)
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
@@ -59,20 +73,20 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       includedFeatures,
       securityDeposit: parseFloat(req.body.securityDeposit) || 0,
       depositRefundable: req.body.depositRefundable === 'true',
-      rating: 0,
       location: req.body.location,
       district: req.body.district,
       status: req.body.status || 'available',
-      image: imageUrl
+      image: imageUrl,
+      rating: 0
     };
     const vehicle = await prisma.vehicle.create({ data });
     res.status(201).json(vehicle);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// PUT update vehicle (admin only)
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const pickupLocations = req.body.pickupLocations ? req.body.pickupLocations.split(',').map(s => s.trim()) : [];
@@ -103,6 +117,7 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
+// DELETE vehicle (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
   await prisma.vehicle.delete({ where: { id: req.params.id } });
   res.json({ message: 'Vehicle deleted' });

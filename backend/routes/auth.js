@@ -258,6 +258,7 @@ router.put('/users/:id', async (req, res) => {
 });
 
 // ==================== DELETE ANY USER (Admin only) ====================
+// DELETE ANY USER (Admin only) – with cascade delete of bookings
 router.delete('/users/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -270,8 +271,13 @@ router.delete('/users/:id', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     
+    // First delete all bookings belonging to this user
+    await prisma.booking.deleteMany({ where: { userId: id } });
+    
+    // Then delete the user
     await prisma.user.delete({ where: { id } });
-    res.json({ message: 'User deleted successfully' });
+    
+    res.json({ message: 'User and all associated bookings deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: error.message });

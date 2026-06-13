@@ -18,34 +18,28 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-// GET all hotels (public) with pagination and optional filters
+// GET hotels – with optional district filter and pagination
 router.get('/', async (req, res) => {
   try {
+    const { district } = req.query;
+
+    if (district) {
+      const hotels = await prisma.hotel.findMany({
+        where: { district: { equals: district, mode: 'insensitive' } },
+        orderBy: { rating: 'desc' }
+      });
+      return res.json(hotels);
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
-    const { district, minPrice, maxPrice } = req.query;
-    const where = {};
-    if (district) where.district = district;
-    if (minPrice || maxPrice) {
-      where.pricePerNight = {};
-      if (minPrice) where.pricePerNight.gte = parseFloat(minPrice);
-      if (maxPrice) where.pricePerNight.lte = parseFloat(maxPrice);
-    }
+
     const [hotels, total] = await Promise.all([
-      prisma.hotel.findMany({
-        where,
-        select: {
-          id: true, name: true, location: true, district: true, pricePerNight: true,
-          rating: true, image: true, checkIn: true, checkOut: true,
-          freeCancellationHours: true, popular: true, breakfastIncluded: true, amenities: true,
-        },
-        orderBy: { rating: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.hotel.count({ where }),
+      prisma.hotel.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.hotel.count()
     ]);
+
     res.json({ data: hotels, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -59,54 +53,50 @@ router.get('/:id', async (req, res) => {
   res.json(hotel);
 });
 
-// CREATE hotel (admin only)
+// POST create hotel (admin only)
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
     const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
-    const hotel = await prisma.hotel.create({
-      data: {
-        name: req.body.name,
-        location: req.body.location,
-        district: req.body.district,
-        pricePerNight: parseFloat(req.body.pricePerNight),
-        amenities,
-        image: imageUrl,
-        checkIn: req.body.checkIn || '2:00 PM',
-        checkOut: req.body.checkOut || '12:00 PM',
-        freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
-        breakfastIncluded: req.body.breakfastIncluded === 'true',
-      },
-    });
+    const data = {
+      name: req.body.name,
+      location: req.body.location,
+      district: req.body.district,
+      pricePerNight: parseFloat(req.body.pricePerNight),
+      amenities,
+      image: imageUrl,
+      checkIn: req.body.checkIn || '2:00 PM',
+      checkOut: req.body.checkOut || '12:00 PM',
+      freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
+      breakfastIncluded: req.body.breakfastIncluded === 'true',
+      rating: 0
+    };
+    const hotel = await prisma.hotel.create({ data });
     res.status(201).json(hotel);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// UPDATE hotel (admin only)
+// PUT update hotel (admin only)
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
-    const existing = await prisma.hotel.findUnique({ where: { id: req.params.id } });
-    if (!existing) return res.status(404).json({ error: 'Hotel not found' });
-    const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : existing.amenities;
+    const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
     const data = {
-      name: req.body.name ?? existing.name,
-      location: req.body.location ?? existing.location,
-      district: req.body.district ?? existing.district,
-      pricePerNight: req.body.pricePerNight ? parseFloat(req.body.pricePerNight) : existing.pricePerNight,
+      name: req.body.name,
+      location: req.body.location,
+      district: req.body.district,
+      pricePerNight: parseFloat(req.body.pricePerNight),
       amenities,
-      checkIn: req.body.checkIn ?? existing.checkIn,
-      checkOut: req.body.checkOut ?? existing.checkOut,
-      freeCancellationHours: req.body.freeCancellationHours ? parseInt(req.body.freeCancellationHours) : existing.freeCancellationHours,
-      breakfastIncluded: req.body.breakfastIncluded !== undefined ? req.body.breakfastIncluded === 'true' : existing.breakfastIncluded,
+      checkIn: req.body.checkIn || '2:00 PM',
+      checkOut: req.body.checkOut || '12:00 PM',
+      freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
+      breakfastIncluded: req.body.breakfastIncluded === 'true',
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const hotel = await prisma.hotel.update({ where: { id: req.params.id }, data });
     res.json(hotel);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });

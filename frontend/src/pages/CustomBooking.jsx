@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 
-// Lazy load leaflet components
+// Lazy load Leaflet components
 const MapContainer = lazy(() => import('react-leaflet').then(module => ({ default: module.MapContainer })));
 const TileLayer = lazy(() => import('react-leaflet').then(module => ({ default: module.TileLayer })));
 const Marker = lazy(() => import('react-leaflet').then(module => ({ default: module.Marker })));
@@ -27,6 +27,13 @@ const FitBounds = ({ positions }) => {
   React.useEffect(() => {
     if (positions && positions.length) map.fitBounds(L.latLngBounds(positions), { padding: [50, 50] });
   }, [map, positions]);
+  return null;
+};
+
+const getCoordinates = (item) => {
+  if (!item || !item.coordinates) return null;
+  if (Array.isArray(item.coordinates)) return [item.coordinates[0], item.coordinates[1]];
+  if (item.coordinates.lat && item.coordinates.lng) return [item.coordinates.lat, item.coordinates.lng];
   return null;
 };
 
@@ -64,27 +71,40 @@ const CustomBooking = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [expandedMap, setExpandedMap] = useState(null);
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [passengers, setPassengers] = useState(1);
-  const [districts, setDistricts] = useState([]);
-  const [guidesMap, setGuidesMap] = useState({});
-  const [vehiclesMap, setVehiclesMap] = useState({});
-  const [hotelsMap, setHotelsMap] = useState({});
 
   const [destinations, setDestinations] = useState([
     { id: 1, districtId: '', districtName: '', places: [], needGuide: false, guideId: '', needHotel: false, hotelBudget: '', hotelId: '', needVehicle: false, vehicleId: '' }
   ]);
   const [nextId, setNextId] = useState(2);
 
-  // Fetch districts from backend
+  const [districts, setDistricts] = useState([]);
+  const [loadingDistricts, setLoadingDistricts] = useState(true);
+  const [guidesMap, setGuidesMap] = useState({});
+  const [vehiclesMap, setVehiclesMap] = useState({});
+  const [hotelsMap, setHotelsMap] = useState({});
+
+  // Helper for minimum start date (48 hours from now)
+  const getMinStartDate = () => {
+    const date = new Date();
+    date.setHours(date.getHours() + 48);
+    return date.toISOString().split('T')[0];
+  };
+
   useEffect(() => {
     const fetchDistricts = async () => {
+      setLoadingDistricts(true);
       try {
         const res = await API.get('/districts');
         setDistricts(res.data);
+        if (res.data.length === 0) toast('No destinations available. Ask admin to add districts.');
       } catch (err) {
         toast.error('Failed to load destinations');
+      } finally {
+        setLoadingDistricts(false);
       }
     };
     fetchDistricts();
@@ -92,19 +112,26 @@ const CustomBooking = () => {
 
   const fetchItemsForDistrict = async (districtId, districtName) => {
     if (!guidesMap[districtId]) {
-      const res = await API.get(`/guides?district=${encodeURIComponent(districtName)}`);
-      setGuidesMap(prev => ({ ...prev, [districtId]: res.data }));
+      try {
+        const res = await API.get(`/guides?district=${encodeURIComponent(districtName)}`);
+        setGuidesMap(prev => ({ ...prev, [districtId]: res.data }));
+      } catch (err) { console.error(err); }
     }
     if (!vehiclesMap[districtId]) {
-      const res = await API.get(`/vehicles?district=${encodeURIComponent(districtName)}`);
-      setVehiclesMap(prev => ({ ...prev, [districtId]: res.data }));
+      try {
+        const res = await API.get(`/vehicles?district=${encodeURIComponent(districtName)}`);
+        setVehiclesMap(prev => ({ ...prev, [districtId]: res.data }));
+      } catch (err) { console.error(err); }
     }
     if (!hotelsMap[districtId]) {
-      const res = await API.get(`/hotels?district=${encodeURIComponent(districtName)}`);
-      setHotelsMap(prev => ({ ...prev, [districtId]: res.data }));
+      try {
+        const res = await API.get(`/hotels?district=${encodeURIComponent(districtName)}`);
+        setHotelsMap(prev => ({ ...prev, [districtId]: res.data }));
+      } catch (err) { console.error(err); }
     }
   };
 
+  // ✅ Night calculation: first 48h = 1 night, each additional 24h adds 1 night
   const numberOfNights = useMemo(() => {
     if (!startDate || !endDate) return 0;
     const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
@@ -122,7 +149,7 @@ const CustomBooking = () => {
   };
 
   const updateDestination = (id, field, value) => {
-    setDestinations(destinations.map(d => d.id === id ? { ...d, [field]: value } : d));
+    setDestinations(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d));
   };
 
   const togglePlace = (id, placeId) => {
@@ -163,7 +190,7 @@ const CustomBooking = () => {
     return total;
   }, [destinations, numberOfNights, guidesMap, vehiclesMap, hotelsMap]);
 
-  // Validations (same as before)
+  // Validation functions
   const validateStep1 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -177,10 +204,12 @@ const CustomBooking = () => {
 
   const validateStep2 = () => {
     if (!startDate || !endDate) { toast.error('Please select both start and end dates'); return false; }
-    const today = new Date(); today.setHours(0,0,0,0);
+    const now = new Date();
+    const minStartDate = new Date();
+    minStartDate.setHours(minStartDate.getHours() + 48);
     const start = new Date(startDate);
     const end = new Date(endDate);
-    if (start < today) { toast.error('Start date cannot be in the past'); return false; }
+    if (start < minStartDate) { toast.error('Bookings must be made at least 48 hours in advance.'); return false; }
     if (end <= start) { toast.error('End date must be after start date'); return false; }
     const destCount = destinations.filter(d => d.districtId).length;
     if (destCount > 1 && numberOfNights < destCount) {
@@ -220,6 +249,7 @@ const CustomBooking = () => {
       return;
     }
     if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4()) return;
+
     const allDestinationsData = destinations.map(d => {
       const districtObj = districts.find(di => di.id === d.districtId);
       const placesList = d.places.map(pid => districtObj?.places.find(p => p.id === pid)).filter(Boolean);
@@ -243,100 +273,310 @@ const CustomBooking = () => {
       sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
       setSelectedRoute({ startDate, endDate, numberOfNights, passengers, allDestinations: allDestinationsData });
       setShowConfirmModal(true);
-    } catch (err) { toast.error('Failed to create booking'); }
+    } catch (err) {
+      toast.error('Failed to create booking');
+    }
   };
 
   const finalConfirmBooking = () => navigate('/payment');
 
-  const getCoordinates = (item) => {
-    if (!item || !item.coordinates) return null;
-    if (Array.isArray(item.coordinates)) return [item.coordinates[0], item.coordinates[1]];
-    if (item.coordinates.lat && item.coordinates.lng) return [item.coordinates.lat, item.coordinates.lng];
-    return null;
-  };
-
   const createNumberedIcon = (number, isStart = false) => {
-    if (isStart) return L.divIcon({ html: `<div style="background:#D4AF37; color:#093C5D; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">S</div>`, className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15] });
-    return L.divIcon({ html: `<div style="background:#093C5D; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${number}</div>`, className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15] });
+    if (isStart) {
+      return L.divIcon({
+        html: `<div style="background:#D4AF37; color:#093C5D; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">S</div>`,
+        className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15]
+      });
+    }
+    return L.divIcon({
+      html: `<div style="background:#093C5D; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${number}</div>`,
+      className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15]
+    });
   };
 
-  // Render Step 1 – Districts and Places from admin
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-primary">Select Your Destinations</h2>
-      {destinations.map((dest, idx) => (
-        <div key={dest.id} className="border rounded-xl p-4 relative">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold">Destination {idx+1}</h3>
-            {destinations.length > 1 && <button onClick={() => removeDestination(dest.id)} className="text-red-500 text-sm">Remove</button>}
-          </div>
-          <select className="input-field mb-3" value={dest.districtId} onChange={e => handleDistrictChange(dest.id, e.target.value)}>
-            <option value="">-- Select district --</option>
-            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          {dest.districtId && (
-            <>
-              <div className="mb-3">
-                <label className="block text-gray-700 mb-1">Places (select at least one)</label>
-                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
-                  {(districts.find(d => d.id === dest.districtId)?.places || []).map(place => (
-                    <label key={place.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={dest.places.includes(place.id)} onChange={() => togglePlace(dest.id, place.id)} />
-                      {place.name}
-                    </label>
-                  ))}
-                </div>
-                {dest.places.length > 0 && <div className="text-green-600 text-xs mt-1">✓ {dest.places.length} selected</div>}
-              </div>
-              <div className="border-t pt-2 mt-2">
-                <label className="flex items-center gap-2 mb-2"><input type="checkbox" checked={dest.needGuide} onChange={e => updateDestination(dest.id, 'needGuide', e.target.checked)} /> Need a Guide</label>
-                {dest.needGuide && (
-                  <select className="input-field mb-2" value={dest.guideId} onChange={e => updateDestination(dest.id, 'guideId', e.target.value)}>
-                    <option value="">Select guide</option>
-                    {(guidesMap[dest.districtId] || []).map(g => <option key={g.id} value={g.id}>{g.name} – Rs {g.pricePerDay}/day</option>)}
-                  </select>
-                )}
-                <label className="flex items-center gap-2 mb-2"><input type="checkbox" checked={dest.needHotel} onChange={e => updateDestination(dest.id, 'needHotel', e.target.checked)} /> Need a Hotel</label>
-                {dest.needHotel && (
-                  <>
-                    <select className="input-field mb-2" value={dest.hotelBudget} onChange={e => updateDestination(dest.id, 'hotelBudget', e.target.value)}>
-                      <option value="">Budget (optional)</option>
-                      <option value="budget">Budget ≤7000</option>
-                      <option value="mid">Mid 7000-12000</option>
-                      <option value="luxury">Luxury ≥12000</option>
-                    </select>
-                    <select className="input-field" value={dest.hotelId} onChange={e => updateDestination(dest.id, 'hotelId', e.target.value)}>
-                      <option value="">Select hotel</option>
-                      {(hotelsMap[dest.districtId] || []).filter(h => {
-                        if (!dest.hotelBudget) return true;
-                        if (dest.hotelBudget === 'budget') return h.pricePerNight <= 7000;
-                        if (dest.hotelBudget === 'mid') return h.pricePerNight > 7000 && h.pricePerNight <= 12000;
-                        if (dest.hotelBudget === 'luxury') return h.pricePerNight > 12000;
-                        return true;
-                      }).map(h => <option key={h.id} value={h.id}>{h.name} – Rs {h.pricePerNight}/night</option>)}
-                    </select>
-                  </>
-                )}
-                <label className="flex items-center gap-2 mb-2"><input type="checkbox" checked={dest.needVehicle} onChange={e => updateDestination(dest.id, 'needVehicle', e.target.checked)} /> Need a Vehicle</label>
-              </div>
-            </>
-          )}
+  // ---------- Step 1 – Select Destinations (removed “Need a Vehicle”) ----------
+  const renderStep1 = () => {
+    if (loadingDistricts) return <div className="text-center py-8">Loading destinations...</div>;
+    if (districts.length === 0) {
+      return (
+        <div className="text-center py-12 bg-yellow-50 rounded-lg border border-yellow-200">
+          <p className="text-yellow-700">⚠️ No destinations available yet.</p>
+          <p className="text-sm text-gray-600 mt-2">Please contact the administrator to add districts and places.</p>
         </div>
-      ))}
-      <button onClick={addDestination} className="btn-secondary w-full">+ Add Another Destination</button>
+      );
+    }
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-primary">Select Your Destinations</h2>
+        {destinations.map((dest, idx) => (
+          <div key={dest.id} className="border rounded-xl p-4 relative">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-semibold">Destination {idx+1}</h3>
+              {destinations.length > 1 && <button onClick={() => removeDestination(dest.id)} className="text-red-500 text-sm">Remove</button>}
+            </div>
+            <select
+              className="input-field mb-3"
+              value={dest.districtId || ""}
+              onChange={(e) => handleDistrictChange(dest.id, e.target.value)}
+            >
+              <option value="">-- Select district --</option>
+              {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            {dest.districtId && (
+              <>
+                <div className="mb-3">
+                  <label className="block text-gray-700 mb-1">Places (select at least one)</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
+                    {(districts.find(d => d.id === dest.districtId)?.places || []).map(place => (
+                      <label key={place.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={dest.places.includes(place.id)}
+                          onChange={() => togglePlace(dest.id, place.id)}
+                        />
+                        {place.name}
+                      </label>
+                    ))}
+                  </div>
+                  {dest.places.length > 0 && <div className="text-green-600 text-xs mt-1">✓ {dest.places.length} selected</div>}
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <label className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={dest.needGuide}
+                      onChange={e => updateDestination(dest.id, 'needGuide', e.target.checked)}
+                    /> Need a Guide
+                  </label>
+                  {dest.needGuide && (
+                    <select className="input-field mb-2" value={dest.guideId || ""} onChange={e => updateDestination(dest.id, 'guideId', e.target.value)}>
+                      <option value="">Select guide</option>
+                      {(guidesMap[dest.districtId] || []).map(g => <option key={g.id} value={g.id}>{g.name} – Rs {g.pricePerDay}/day</option>)}
+                    </select>
+                  )}
+                  <label className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={dest.needHotel}
+                      onChange={e => updateDestination(dest.id, 'needHotel', e.target.checked)}
+                    /> Need a Hotel
+                  </label>
+                  {dest.needHotel && (
+                    <>
+                      <select className="input-field mb-2" value={dest.hotelBudget || ""} onChange={e => {
+                        updateDestination(dest.id, 'hotelBudget', e.target.value);
+                        updateDestination(dest.id, 'hotelId', '');
+                      }}>
+                        <option value="">Budget (optional)</option>
+                        <option value="budget">Budget ≤7000</option>
+                        <option value="mid">Mid 7000-12000</option>
+                        <option value="luxury">Luxury ≥12000</option>
+                      </select>
+                      <select className="input-field" value={dest.hotelId || ""} onChange={e => updateDestination(dest.id, 'hotelId', e.target.value)}>
+                        <option value="">Select hotel</option>
+                        {(hotelsMap[dest.districtId] || []).filter(h => {
+                          if (!dest.hotelBudget) return true;
+                          if (dest.hotelBudget === 'budget') return h.pricePerNight <= 7000;
+                          if (dest.hotelBudget === 'mid') return h.pricePerNight > 7000 && h.pricePerNight <= 12000;
+                          if (dest.hotelBudget === 'luxury') return h.pricePerNight > 12000;
+                          return true;
+                        }).map(h => <option key={h.id} value={h.id}>{h.name} – Rs {h.pricePerNight}/night</option>)}
+                      </select>
+                    </>
+                  )}
+                  {/* “Need a Vehicle” checkbox removed from Step 1 */}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        <button onClick={addDestination} className="btn-secondary w-full">+ Add Another Destination</button>
+      </div>
+    );
+  };
+
+  // ---------- Step 2 – Travel Dates (48h min) ----------
+  const renderStep2 = () => {
+    const minDate = getMinStartDate();
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-primary">Travel Dates</h2>
+        <div>
+          <label className="block mb-1">Start Date (minimum 48 hours from now)</label>
+          <input type="date" className="input-field" value={startDate} min={minDate} onChange={e => setStartDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="block mb-1">End Date</label>
+          <input type="date" className="input-field" value={endDate} min={startDate || minDate} onChange={e => setEndDate(e.target.value)} />
+        </div>
+        {numberOfNights >= 0 && <div className="bg-blue-50 p-3 rounded text-primary font-semibold">🏨 Total nights: {numberOfNights}</div>}
+        <p className="text-sm text-gray-500">Note: If you have multiple destinations, total nights must be at least the number of destinations.</p>
+      </div>
+    );
+  };
+
+  // ---------- Step 3 – Passengers ----------
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-primary">Number of Passengers</h2>
+      <div className="flex items-center gap-4">
+        <button onClick={() => setPassengers(Math.max(1, passengers-1))} className="w-10 h-10 rounded-full bg-gray-200">-</button>
+        <span className="text-2xl font-semibold">{passengers}</span>
+        <button onClick={() => setPassengers(passengers+1)} className="w-10 h-10 rounded-full bg-gray-200">+</button>
+      </div>
+      <p className="text-sm text-gray-500">Note: If you select a guide for a destination, the vehicle capacity will increase by 1 seat for that district.</p>
     </div>
   );
 
-  // Other steps (Dates, Passengers, Vehicles, Review, Maps, Total) – similar to previous version but using dynamic data
-  // For brevity, I'll include the rest of the steps (they are essentially the same as the final version provided earlier)
-  // Full code can be provided if needed, but the core dynamic part is Step 1.
-  // The remaining steps (2-7) can be copied from the previous CustomBooking.jsx (they use the same state and functions).
+  // ---------- Step 4 – Vehicles (remains unchanged) ----------
+  const renderStep4 = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-primary">Select Vehicles (if needed)</h2>
+      {destinations.map((dest, idx) => {
+        const requiredSeats = passengers + (dest.needGuide ? 1 : 0);
+        const available = (vehiclesMap[dest.districtId] || []).filter(v => v.passengers >= requiredSeats);
+        return (
+          <div key={dest.id} className="border rounded-xl p-4">
+            <h3 className="font-semibold mb-2">Destination {idx+1}: {dest.districtName}</h3>
+            <label className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                checked={dest.needVehicle}
+                onChange={e => {
+                  updateDestination(dest.id, 'needVehicle', e.target.checked);
+                  if (!e.target.checked) updateDestination(dest.id, 'vehicleId', '');
+                }}
+              /> Need a Vehicle
+            </label>
+            {dest.needVehicle && (
+              <>
+                <p className="text-sm text-gray-600 mb-2">Required seats: {requiredSeats}</p>
+                <select className="input-field" value={dest.vehicleId || ""} onChange={e => updateDestination(dest.id, 'vehicleId', e.target.value)}>
+                  <option value="">Select vehicle</option>
+                  {available.map(v => <option key={v.id} value={v.id}>{v.model} – Rs {v.pricePerDay}/day (seats {v.passengers})</option>)}
+                </select>
+                {available.length === 0 && <p className="text-red-500 text-sm mt-2">⚠️ No vehicle available</p>}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-  // For this answer to be complete, I include placeholder for the rest – but in production you would merge with your existing component.
-  // I will now continue with the rest of the render functions (they are unchanged from the previous working version).
+  // ---------- Step 5 – Review Itinerary ----------
+  const renderStep5 = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-primary">Review Itinerary</h2>
+      {destinations.map((d, idx) => {
+        const districtObj = districts.find(di => di.id === d.districtId);
+        const placeNames = d.places.map(pid => districtObj?.places.find(p => p.id === pid)?.name).filter(Boolean);
+        return (
+          <div key={d.id} className="border rounded-lg p-4">
+            <h3 className="font-bold text-primary">Destination {idx+1}: {d.districtName}</h3>
+            <p><strong>Places:</strong> {placeNames.join(', ') || 'None'}</p>
+            {d.needGuide && <p>Guide: {(guidesMap[d.districtId] || []).find(g => g.id === d.guideId)?.name}</p>}
+            {d.needVehicle && <p>Vehicle: {(vehiclesMap[d.districtId] || []).find(v => v.id === d.vehicleId)?.model}</p>}
+            {d.needHotel && <p>Hotel: {(hotelsMap[d.districtId] || []).find(h => h.id === d.hotelId)?.name}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-  // ... (include renderStep2, renderStep3, renderStep4, renderStep5, renderStep6, renderStep7, renderConfirmModal)
-  // The following are the same as the final CustomBooking.jsx from earlier (with dynamic maps using getCoordinates).
+  // ---------- Step 6 – Route Maps (handles missing coordinates) ----------
+  const renderStep6 = () => {
+    const allMaps = destinations.map((dest, idx) => {
+      const districtObj = districts.find(d => d.id === dest.districtId);
+      if (!districtObj) return null;
+      const startPoint = getCoordinates(districtObj);
+      // If the district has no coordinates, show a message and skip map
+      if (!startPoint) {
+        return (
+          <div key={dest.id} className="border rounded-lg p-4 bg-yellow-50">
+            <p className="text-yellow-700">⚠️ Cannot display map for {dest.districtName} – missing coordinates.</p>
+            <p className="text-sm text-gray-600">Please ask the administrator to add coordinates for this district.</p>
+          </div>
+        );
+      }
+      // Only use places that have coordinates
+      const selectedPlaces = dest.places
+        .map(pid => districtObj.places.find(p => p.id === pid))
+        .filter(p => p && getCoordinates(p));
+      if (selectedPlaces.length === 0) {
+        return (
+          <div key={dest.id} className="border rounded-lg p-4 bg-yellow-50">
+            <p className="text-yellow-700">⚠️ No places with coordinates selected for {dest.districtName}.</p>
+            <p className="text-sm text-gray-600">Add coordinates to places in the admin panel to see them on the map.</p>
+          </div>
+        );
+      }
+      const positions = [startPoint, ...selectedPlaces.map(p => getCoordinates(p))];
+      const optimalRoute = calculateOptimalRoute(startPoint, selectedPlaces.map(p => ({ name: p.name, coordinates: getCoordinates(p) })));
+      const isOpen = expandedMap === dest.id;
+      const mapKey = `${dest.districtId}-${isOpen ? 'open' : 'closed'}-${Date.now()}`;
+      return (
+        <div key={dest.id} className="border rounded-lg mb-4">
+          <button onClick={() => setExpandedMap(isOpen ? null : dest.id)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg">
+            <span className="font-semibold text-primary">District {idx+1}: {dest.districtName} ({dest.places.length} places, {selectedPlaces.length} with coordinates)</span>
+            {isOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+          </button>
+          {isOpen && (
+            <div className="p-4">
+              <div className="border rounded-lg overflow-hidden" style={{ height: '350px', width: '100%' }}>
+                <Suspense fallback={<div className="bg-gray-100 animate-pulse flex items-center justify-center h-full">Loading map...</div>}>
+                  <MapContainer key={mapKey} center={startPoint} zoom={10} style={{ height: '100%', width: '100%' }}>
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <Marker position={startPoint} icon={createNumberedIcon(0, true)}><Popup>Start: {dest.districtName}</Popup></Marker>
+                    {optimalRoute.map((marker, i) => (
+                      <Marker key={marker.name} position={marker.coordinates} icon={createNumberedIcon(i+1)}><Popup>{i+1}. {marker.name}</Popup></Marker>
+                    ))}
+                    {positions.length > 1 && <Polyline positions={positions} color="#D4AF37" weight={4} />}
+                    <FitBounds positions={positions} />
+                  </MapContainer>
+                </Suspense>
+              </div>
+              <div className="bg-blue-50 p-2 rounded mt-2 text-sm">Optimised route: {optimalRoute.map(p => p.name).join(' → ')}</div>
+            </div>
+          )}
+        </div>
+      );
+    });
+    return <div className="space-y-6"><h2 className="text-2xl font-bold text-primary">Route Maps</h2>{allMaps}</div>;
+  };
+
+  // ---------- Step 7 – Total Price ----------
+  const renderStep7 = () => (
+    <div className="space-y-6 text-center">
+      <h2 className="text-2xl font-bold text-primary">Total Price</h2>
+      <div className="text-4xl font-bold text-primary">Rs {calculateTotal.toLocaleString()}</div>
+      <button onClick={handleConfirmBooking} className="btn-primary w-full py-3">Confirm Booking →</button>
+    </div>
+  );
+
+  const renderConfirmModal = () => {
+    if (!selectedRoute) return null;
+    const total = calculateTotal;
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
+          <div className="flex justify-between items-center mb-4"><h2 className="text-2xl font-bold text-primary">Confirm Booking</h2><button onClick={() => setShowConfirmModal(false)}><X size={24} /></button></div>
+          <p><strong>Dates:</strong> {startDate} – {endDate} ({selectedRoute.numberOfNights} nights)</p>
+          <p><strong>Passengers:</strong> {passengers}</p>
+          {selectedRoute.allDestinations.map((d, i) => (
+            <div key={i} className="border-t mt-3 pt-3">
+              <h3 className="font-bold">Destination {i+1}: {d.district}</h3>
+              <p>Places: {d.places.join(', ')}</p>
+              {d.guide && <p>Guide: {d.guide.name} (Rs {d.guide.pricePerDay}/day)</p>}
+              {d.vehicle && <p>Vehicle: {d.vehicle.model} (Rs {d.vehicle.pricePerDay}/day)</p>}
+              {d.hotel && <p>Hotel: {d.hotel.name} (Rs {d.hotel.pricePerNight}/night)</p>}
+            </div>
+          ))}
+          <div className="text-right text-xl font-bold mt-4">Total: Rs {total.toLocaleString()}</div>
+          <div className="flex gap-3 mt-6"><button onClick={() => setShowConfirmModal(false)} className="btn-outline flex-1">Edit</button><button onClick={finalConfirmBooking} className="btn-primary flex-1">Confirm & Pay</button></div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-cream py-12">

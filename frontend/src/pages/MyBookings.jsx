@@ -32,7 +32,9 @@ const MyBookings = () => {
       setEditData({});
       setSelected(null);
       loadBookings();
-    } catch (err) { toast.error('Update failed'); }
+    } catch (err) {
+      toast.error('Update failed');
+    }
   };
 
   const deleteBooking = async (id) => {
@@ -41,7 +43,9 @@ const MyBookings = () => {
         await API.delete(`/bookings/${id}`);
         toast.success('Booking cancelled');
         loadBookings();
-      } catch (err) { toast.error('Cancellation failed'); }
+      } catch (err) {
+        toast.error('Cancellation failed');
+      }
     }
   };
 
@@ -51,7 +55,9 @@ const MyBookings = () => {
     if (booking.places && booking.places.length) {
       placesList = `<ul>${booking.places.map(p => `<li>${p}</li>`).join('')}</ul>`;
     } else if (booking.destinations) {
-      placesList = booking.destinations.map(d => `<li><strong>${d.district}:</strong> ${d.places.join(', ')}</li>`).join('');
+      placesList = booking.destinations.map(d => 
+        `<li><strong>${d.district}:</strong> ${d.places.join(', ')}</li>`
+      ).join('');
       placesList = `<ul>${placesList}</ul>`;
     } else {
       placesList = '<p>Not specified</p>';
@@ -78,7 +84,8 @@ const MyBookings = () => {
       <body>
         <div class="header"><div class="company">SerendiGo Travels</div><div>Experience Sri Lanka Beautifully</div></div>
         <div class="invoice-title">TAX INVOICE</div>
-        <div class="details"><tr><td width="120"><strong>Invoice No:</strong></td><td>INV-${booking.id}-${Date.now()}</td></tr>
+        <div class="details">
+          <tr><td width="120"><strong>Invoice No:</strong></td><td>INV-${booking.id}-${Date.now()}</td></tr>
           <tr><td><strong>Date:</strong></td><td>${new Date().toLocaleDateString()}</td></tr>
           <tr><td><strong>Customer:</strong></td><td>${booking.user?.name || booking.customerName || user?.name || 'Guest'}</td></tr>
           <tr><td><strong>Email:</strong></td><td>${booking.user?.email || booking.customerEmail || user?.email || 'N/A'}</td></tr>
@@ -116,6 +123,8 @@ const MyBookings = () => {
 
   const openInvoiceModal = (booking) => { setSelected(booking); setEditData({}); setShowModal(true); };
   const openEditModal = (booking) => { setEditData(booking); setSelected(null); setShowModal(true); };
+
+  // ✅ 48‑hour rule: can edit/cancel only if start date is more than 48 hours away
   const canEditOrCancel = (booking) => {
     if (booking.status !== 'pending') return false;
     const start = new Date(booking.startDate);
@@ -126,7 +135,7 @@ const MyBookings = () => {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold text-primary">My Bookings</h1>
+      <h1 className="text-3xl font-bold text-primary mb-6">My Bookings</h1>
       {bookings.length === 0 ? (
         <p className="text-center py-10">No bookings. <Link to="/tours" className="text-secondary">Start planning</Link></p>
       ) : (
@@ -141,7 +150,13 @@ const MyBookings = () => {
                     <span><MapPin size={14} /> {b.destination || (b.destinations ? 'Multiple districts' : 'Sri Lanka')}</span>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${b.status === 'confirmed' ? 'bg-green-100 text-green-800' : b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>{b.status}</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                  b.status === 'confirmed' ? 'bg-green-100 text-green-800' : 
+                  b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {b.status}
+                </span>
               </div>
               <div className="mt-3 text-sm text-gray-600 border-t pt-3">
                 {b.hotelName && <span className="mr-3">🏨 {b.hotelName}</span>}
@@ -150,20 +165,35 @@ const MyBookings = () => {
                 <span>👥 {b.passengers || 1} passengers</span>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button onClick={() => openInvoiceModal(b)} className="text-blue-600 hover:text-blue-800 flex items-center gap-1"><FileText size={16}/> Invoice</button>
-                {b.status === 'confirmed' && <button onClick={() => downloadPDF(b)} className="text-green-600 hover:text-green-800 flex items-center gap-1"><Download size={16}/> PDF</button>}
+                <button onClick={() => openInvoiceModal(b)} className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                  <FileText size={16}/> Invoice
+                </button>
+                {b.status === 'confirmed' && (
+                  <button onClick={() => downloadPDF(b)} className="text-green-600 hover:text-green-800 flex items-center gap-1">
+                    <Download size={16}/> PDF
+                  </button>
+                )}
                 {b.status === 'pending' && canEditOrCancel(b) && (
                   <>
-                    <button onClick={() => openEditModal(b)} className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1"><Edit2 size={16}/> Edit</button>
-                    <button onClick={() => deleteBooking(b.id)} className="text-red-600 hover:text-red-800 flex items-center gap-1"><Trash2 size={16}/> Cancel</button>
+                    <button onClick={() => openEditModal(b)} className="text-yellow-600 hover:text-yellow-800 flex items-center gap-1">
+                      <Edit2 size={16}/> Edit
+                    </button>
+                    <button onClick={() => deleteBooking(b.id)} className="text-red-600 hover:text-red-800 flex items-center gap-1">
+                      <Trash2 size={16}/> Cancel
+                    </button>
                   </>
                 )}
+                {b.status === 'pending' && !canEditOrCancel(b) && (
+                  <p className="text-xs text-red-500 mt-2">
+                    ⚠️ Cannot edit or cancel – less than 48 hours before start date.
+                  </p>
+                )}
               </div>
-              {b.status === 'pending' && !canEditOrCancel(b) && <p className="text-xs text-red-500 mt-2">⚠️ Cannot edit or cancel – less than 48 hours before start date.</p>}
             </div>
           ))}
         </div>
       )}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
@@ -190,7 +220,9 @@ const MyBookings = () => {
                 <p><strong>Days:</strong> {selected?.numberOfDays || selected?.days}</p>
                 <p><strong>Passengers:</strong> {selected?.passengers || 1}</p>
                 <p><strong>Total:</strong> <span className="font-bold text-primary">Rs {selected?.totalAmount?.toLocaleString()}</span></p>
-                {selected?.status === 'confirmed' && <button onClick={() => downloadPDF(selected)} className="btn-primary w-full mt-4">Download Full Invoice (PDF)</button>}
+                {selected?.status === 'confirmed' && (
+                  <button onClick={() => downloadPDF(selected)} className="btn-primary w-full mt-4">Download Full Invoice (PDF)</button>
+                )}
                 <button onClick={() => setShowModal(false)} className="btn-outline w-full mt-2">Close</button>
               </div>
             )}

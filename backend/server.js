@@ -43,6 +43,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/tour-packages', tourPackageRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/districts', districtRoutes);
+
 // app.use('/api/users', userRoutes);
 
 // Test route

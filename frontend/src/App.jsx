@@ -8,6 +8,8 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
 
+// Remove the regular import of AdminDistricts – keep only the lazy one below
+// import AdminDistricts from './pages/Admin/AdminDistricts';   // DELETE THIS LINE
 
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center h-64">
@@ -33,7 +35,7 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Lazy imports (keep as they are)
+// Lazy imports
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Login = lazy(() => import('./pages/Login'));
@@ -63,7 +65,7 @@ const CompanyCommission = lazy(() => import('./pages/Admin/CompanyCommission'));
 const AdminFeedbacks = lazy(() => import('./pages/Admin/AdminFeedbacks'));
 const MyReviews = lazy(() => import('./pages/MyReviews'));
 const AdminTourPackages = lazy(() => import('./pages/Admin/AdminTourPackages'));
-
+const AdminDistricts = lazy(() => import('./pages/Admin/AdminDistricts'));   // Keep only this line
 
 function App() {
   return (
@@ -96,7 +98,6 @@ function App() {
                   <Route path="/payment" element={<PrivateRoute><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
                   <Route path="/my-reviews" element={<PrivateRoute><MyReviews /></PrivateRoute>} />
 
-
                   {/* Admin routes */}
                   <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>}>
                     <Route path="hotels" element={<AdminHotels />} />
@@ -108,8 +109,7 @@ function App() {
                     <Route path="feedbacks" element={<AdminFeedbacks />} />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="tour-packages" element={<AdminTourPackages />} />
-                    
-                    
+                    <Route path="districts" element={<AdminDistricts />} />
                   </Route>
                 </Routes>
               </Suspense>

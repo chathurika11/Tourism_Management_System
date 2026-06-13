@@ -18,23 +18,48 @@ const adminOnly = (req, res, next) => {
   }
 };
 
+// GET guides – with optional district filter and pagination
 router.get('/', async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 12;
-  const skip = (page - 1) * limit;
-  const [guides, total] = await Promise.all([
-    prisma.guide.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
-    prisma.guide.count()
-  ]);
-  res.json({ data: guides, total, page, totalPages: Math.ceil(total / limit) });
+  try {
+    const { district } = req.query;
+
+    // If district is provided, return all guides in that district (no pagination)
+    if (district) {
+      const guides = await prisma.guide.findMany({
+        where: { district: { equals: district, mode: 'insensitive' } },
+        orderBy: { rating: 'desc' }
+      });
+      return res.json(guides);
+    }
+
+    // Otherwise, return paginated list (for admin or general listing)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+
+    const [guides, total] = await Promise.all([
+      prisma.guide.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.guide.count()
+    ]);
+
+    res.json({ data: guides, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
+// GET single guide
 router.get('/:id', async (req, res) => {
   const guide = await prisma.guide.findUnique({ where: { id: req.params.id } });
   if (!guide) return res.status(404).json({ error: 'Guide not found' });
   res.json(guide);
 });
 
+// POST create guide (admin only)
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
@@ -61,6 +86,7 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
+// PUT update guide (admin only)
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const data = {
@@ -83,6 +109,7 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
+// DELETE guide (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
   await prisma.guide.delete({ where: { id: req.params.id } });
   res.json({ message: 'Guide deleted' });
