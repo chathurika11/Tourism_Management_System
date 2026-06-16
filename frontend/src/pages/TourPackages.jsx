@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package, 
-  Car, Home, BookOpen, Heart, X, Clock 
+  Car, Home, BookOpen, X, MessageCircle 
 } from 'lucide-react';
 import API, { getImageUrl } from '../services/api';
+import FeedbackModal from '../components/FeedbackModal';
 import toast from 'react-hot-toast';
 import tourPackagesBg from '../images/TourPackagesBackground.jpg';
 
@@ -45,6 +46,19 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
   const [endDate, setEndDate] = useState('');
   const [passengers, setPassengers] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbacks, setFeedbacks] = useState([]);
+
+  const loadFeedbacks = React.useCallback(() => {
+    if (!pkg?.id) return;
+    API.get(`/feedback/tour/${pkg.id}`)
+      .then(res => setFeedbacks(res.data))
+      .catch(err => console.error(err));
+  }, [pkg?.id]);
+
+  useEffect(() => {
+    if (isOpen && pkg?.id) loadFeedbacks();
+  }, [isOpen, pkg?.id, loadFeedbacks]);
 
   if (!isOpen || !pkg) return null;
 
@@ -57,6 +71,12 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
   const totalAmount = pkg.price * passengers;
 
   const handleProceedToBooking = () => setStep(2);
+
+  const handleAddFeedback = async ({ tourId, rating, comment }) => {
+    await API.post('/feedback/tour', { tourId, rating, comment });
+    toast.success('Review submitted');
+    loadFeedbacks();
+  };
 
   const handleBookNow = async () => {
     if (!user) {
@@ -177,8 +197,34 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={onClose} className="btn-outline flex-1">Close</button>
+                <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>
                 <button onClick={handleProceedToBooking} className="btn-primary flex-1">Book Now →</button>
               </div>
+            </div>
+            <div className="border-t border-gray-100 p-6 bg-gray-50">
+              <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2"><MessageCircle size={18} /> Customer Reviews ({feedbacks.length})</h3>
+              {feedbacks.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No reviews yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                  {feedbacks.map(fb => (
+                    <div key={fb.id} className="bg-white p-4 rounded-xl shadow-sm">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-primary">{fb.user?.name || 'Guest'}</span>
+                        <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} size={14} className={i < fb.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} />)}</div>
+                      </div>
+                      <p className="text-gray-600 text-sm mt-1">{fb.comment}</p>
+                      {fb.reply && (
+                        <div className="mt-2 bg-blue-50 p-2 rounded-lg">
+                          <p className="text-xs font-semibold text-primary">Admin Reply:</p>
+                          <p className="text-gray-700 text-sm">{fb.reply}</p>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400 mt-2">{new Date(fb.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -206,6 +252,14 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
             </div>
           </div>
         )}
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmit={handleAddFeedback}
+          itemName={pkg.name}
+          itemId={pkg.id}
+          type="tour"
+        />
       </div>
     </div>
   );

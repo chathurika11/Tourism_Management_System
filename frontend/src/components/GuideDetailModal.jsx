@@ -1,12 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, MapPin, Star, Calendar, Globe, Award, DollarSign, Sparkles, Phone, Mail, MessageCircle } from 'lucide-react';
 import FeedbackModal from './FeedbackModal';
-import { getImageUrl } from '../services/api';
+import API, { getImageUrl } from '../services/api';
+import toast from 'react-hot-toast';
 
-const GuideDetailModal = ({ isOpen, onClose, guide, onAddFeedback }) => {
+const GuideDetailModal = ({ isOpen, onClose, guide }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbacks, setFeedbacks] = useState([]);
+
+  const loadFeedbacks = React.useCallback(() => {
+    if (!guide?.id) return;
+    API.get(`/feedback/guide/${guide.id}`)
+      .then(res => setFeedbacks(res.data))
+      .catch(err => console.error(err));
+  }, [guide?.id]);
+
+  useEffect(() => {
+    if (isOpen && guide?.id) loadFeedbacks();
+  }, [isOpen, guide?.id, loadFeedbacks]);
 
   if (!isOpen || !guide) return null;
+
+  const handleAddFeedback = async ({ guideId, rating, comment }) => {
+    await API.post('/feedback/guide', { guideId, rating, comment });
+    toast.success('Review submitted');
+    loadFeedbacks();
+  };
 
   return (
     <>
@@ -37,12 +56,37 @@ const GuideDetailModal = ({ isOpen, onClose, guide, onAddFeedback }) => {
               <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>
             </div>
           </div>
+          <div className="border-t border-gray-100 p-6 bg-gray-50">
+            <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2"><MessageCircle size={18} /> Customer Reviews ({feedbacks.length})</h3>
+            {feedbacks.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No reviews yet.</p>
+            ) : (
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                {feedbacks.map(fb => (
+                  <div key={fb.id} className="bg-white p-4 rounded-xl shadow-sm">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-primary">{fb.user?.name || 'Guest'}</span>
+                      <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} size={14} className={i < fb.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} />)}</div>
+                    </div>
+                    <p className="text-gray-600 text-sm mt-1">{fb.comment}</p>
+                    {fb.reply && (
+                      <div className="mt-2 bg-blue-50 p-2 rounded-lg">
+                        <p className="text-xs font-semibold text-primary">Admin Reply:</p>
+                        <p className="text-gray-700 text-sm">{fb.reply}</p>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">{new Date(fb.createdAt).toLocaleDateString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <FeedbackModal
         isOpen={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
-        onSubmit={onAddFeedback}
+        onSubmit={handleAddFeedback}
         itemName={guide.name}
         itemId={guide.id}
         type="guide"

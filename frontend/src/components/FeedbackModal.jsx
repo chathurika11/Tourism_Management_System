@@ -7,11 +7,12 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, itemName, itemId, type }) =>
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [hoveredRating, setHoveredRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const { user } = useAuth();
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
       toast.error('Please login to submit feedback');
@@ -22,15 +23,22 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, itemName, itemId, type }) =>
       toast.error('Please write a comment');
       return;
     }
-    onSubmit({
-      [`${type}Id`]: itemId,
-      userName: user.name || 'Guest User',
-      rating,
-      comment
-    });
-    setRating(5);
-    setComment('');
-    onClose();
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        [`${type}Id`]: itemId,
+        userName: user.name || 'Guest User',
+        rating,
+        comment
+      });
+      setRating(5);
+      setComment('');
+      onClose();
+    } catch (error) {
+      toast.error(error?.response?.data?.error || 'Failed to submit review');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -85,8 +93,8 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, itemName, itemId, type }) =>
             <button type="button" onClick={onClose} className="btn-outline flex-1">
               Cancel
             </button>
-            <button type="submit" className="btn-primary flex-1">
-              Submit Review
+            <button type="submit" disabled={submitting} className="btn-primary flex-1 disabled:opacity-60">
+              {submitting ? 'Submitting...' : 'Submit Review'}
             </button>
           </div>
         </form>

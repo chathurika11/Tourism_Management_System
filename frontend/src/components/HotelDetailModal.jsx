@@ -2,18 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { X, Star, MapPin, Clock, Calendar, Bell, CheckCircle, Sparkles, MessageCircle, Coffee } from 'lucide-react';
 import FeedbackModal from './FeedbackModal';
 import API, { getImageUrl } from '../services/api';
+import toast from 'react-hot-toast';
 
-const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
+const HotelDetailModal = ({ isOpen, onClose, hotel }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
 
+  const loadFeedbacks = React.useCallback(() => {
+    if (!hotel?.id) return;
+    API.get(`/feedback/hotel/${hotel.id}`)
+      .then(res => setFeedbacks(res.data))
+      .catch(err => console.error(err));
+  }, [hotel?.id]);
+
   useEffect(() => {
     if (isOpen && hotel?.id) {
-      API.get(`/feedback/hotel/${hotel.id}`)
-        .then(res => setFeedbacks(res.data))
-        .catch(err => console.error(err));
+      loadFeedbacks();
     }
-  }, [isOpen, hotel?.id]);
+  }, [isOpen, hotel?.id, loadFeedbacks]);
 
   if (!isOpen || !hotel) return null;
 
@@ -22,6 +28,12 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
   const formatPrice = (price) => {
     if (price === undefined || price === null) return '0';
     return price.toLocaleString();
+  };
+
+  const handleAddFeedback = async ({ hotelId, rating, comment }) => {
+    await API.post('/feedback/hotel', { hotelId, rating, comment });
+    toast.success('Review submitted');
+    loadFeedbacks();
   };
 
   return (
@@ -112,7 +124,7 @@ const HotelDetailModal = ({ isOpen, onClose, hotel, onAddFeedback }) => {
       <FeedbackModal 
         isOpen={showFeedbackModal} 
         onClose={() => setShowFeedbackModal(false)} 
-        onSubmit={onAddFeedback} 
+        onSubmit={handleAddFeedback} 
         itemName={hotel.name} 
         itemId={hotel.id} 
         type="hotel" 

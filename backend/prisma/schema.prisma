@@ -29,6 +29,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   bookings      Booking[]
+  vehicleFeedbacks VehicleFeedback[]
+  guideFeedbacks GuideFeedback[]
+  hotelFeedbacks HotelFeedback[]
+  tourFeedbacks TourFeedback[]
   userRoles     UserRole[]
   auditLogs     AuditLog[] @relation("AuditActor")
 
@@ -125,6 +129,7 @@ model Vehicle {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   tourPackages      TourPackage[]
+  feedbacks         VehicleFeedback[]
 
   @@index([district])
   @@index([type])
@@ -150,6 +155,7 @@ model Hotel {
   updatedAt              DateTime  @updatedAt
   breakfastIncluded      Boolean   @default(false)
   tourPackages           TourPackage[]
+  feedbacks              HotelFeedback[]
 
   @@index([district])
   @@index([rating])
@@ -173,6 +179,7 @@ model Guide {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   tourPackages  TourPackage[]
+  feedbacks     GuideFeedback[]
 
   @@index([district])
   @@index([popular])
@@ -181,46 +188,66 @@ model Guide {
 
 model VehicleFeedback {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  hotelId   String   @db.ObjectId
+  vehicleId String   @db.ObjectId
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
   userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   rating    Int
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
   createdAt DateTime @default(now())
+
+  @@index([vehicleId])
+  @@index([userId])
 }
 
 model GuideFeedback {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  hotelId   String   @db.ObjectId
+  guideId   String   @db.ObjectId
+  guide     Guide    @relation(fields: [guideId], references: [id])
   userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   rating    Int
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
   createdAt DateTime @default(now())
+
+  @@index([guideId])
+  @@index([userId])
 }
 
 model HotelFeedback {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   hotelId   String   @db.ObjectId
+  hotel     Hotel    @relation(fields: [hotelId], references: [id])
   userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   rating    Int
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
   createdAt DateTime @default(now())
+
+  @@index([hotelId])
+  @@index([userId])
 }
 
 model TourFeedback {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  hotelId   String   @db.ObjectId
+  tourId    String   @db.ObjectId
+  tour      TourPackage @relation(fields: [tourId], references: [id])
   userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
   rating    Int
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
   createdAt DateTime @default(now())
+
+  @@index([tourId])
+  @@index([userId])
 }
 
 model TourPackage {
@@ -244,6 +271,7 @@ model TourPackage {
   vehicle       Vehicle? @relation(fields: [vehicleId], references: [id])
   guideId       String?  @db.ObjectId
   guide         Guide?   @relation(fields: [guideId], references: [id])
+  feedbacks     TourFeedback[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

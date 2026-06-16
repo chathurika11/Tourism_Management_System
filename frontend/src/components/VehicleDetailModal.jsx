@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
-import { X, Users, Fuel, Calendar, Shield, Clock, MapPin, Star, DollarSign, CheckCircle, Car, Wifi } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Users, Fuel, Calendar, Shield, Clock, MapPin, Star, CheckCircle, Car } from 'lucide-react';
 import FeedbackModal from './FeedbackModal';
-import { useTour } from '../context/TourContext';
-import { getImageUrl } from '../services/api';
+import API, { getImageUrl } from '../services/api';
+import toast from 'react-hot-toast';
 
-const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
+const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const { getVehicleFeedbacks } = useTour();
-  const feedbacks = getVehicleFeedbacks(vehicle?.id);
+  const [feedbacks, setFeedbacks] = useState([]);
+
+  const loadFeedbacks = React.useCallback(() => {
+    if (!vehicle?.id) return;
+    API.get(`/feedback/vehicle/${vehicle.id}`)
+      .then(res => setFeedbacks(res.data))
+      .catch(err => console.error(err));
+  }, [vehicle?.id]);
+
+  useEffect(() => {
+    if (isOpen && vehicle?.id) loadFeedbacks();
+  }, [isOpen, vehicle?.id, loadFeedbacks]);
 
   if (!isOpen || !vehicle) return null;
+
+  const handleAddFeedback = async ({ vehicleId, rating, comment }) => {
+    await API.post('/feedback/vehicle', { vehicleId, rating, comment });
+    toast.success('Review submitted');
+    loadFeedbacks();
+  };
 
   return (
     <>
@@ -71,11 +87,17 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
                 {feedbacks.map(fb => (
                   <div key={fb.id} className="bg-white p-4 rounded-xl shadow-sm">
                     <div className="flex justify-between">
-                      <span className="font-semibold text-primary">{fb.userName}</span>
+                      <span className="font-semibold text-primary">{fb.user?.name || 'Guest'}</span>
                       <div className="flex">{[...Array(5)].map((_, i) => <Star key={i} size={14} className={i < fb.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'} />)}</div>
                     </div>
                     <p className="text-gray-600 text-sm mt-1">{fb.comment}</p>
-                    <p className="text-xs text-gray-400 mt-2">{fb.date}</p>
+                    {fb.reply && (
+                      <div className="mt-2 bg-blue-50 p-2 rounded-lg">
+                        <p className="text-xs font-semibold text-primary">Admin Reply:</p>
+                        <p className="text-gray-700 text-sm">{fb.reply}</p>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">{new Date(fb.createdAt).toLocaleDateString()}</p>
                   </div>
                 ))}
               </div>
@@ -83,7 +105,7 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, onAddFeedback }) => {
           </div>
         </div>
       </div>
-      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} onSubmit={onAddFeedback} itemName={vehicle.model} itemId={vehicle.id} type="vehicle" />
+      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} onSubmit={handleAddFeedback} itemName={vehicle.model} itemId={vehicle.id} type="vehicle" />
     </>
   );
 };

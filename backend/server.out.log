@@ -1,7 +1,0 @@
-
-> backend@1.0.0 start
-> node server.js
-
-⚠ Email not configured – OTP will be shown in console only
-✅ Server running on port 5000
-📡 API available at http://localhost:5000/api
