@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const upload = require('../middleware/upload');
+const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -10,7 +11,7 @@ const adminOnly = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!['admin', 'staff'].includes(decoded.role)) return res.status(403).json({ error: 'Admin or staff only' });
     req.user = decoded;
     next();
   } catch {
@@ -80,6 +81,10 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       rating: 0
     };
     const vehicle = await prisma.vehicle.create({ data });
+    await logAudit(req, 'VEHICLE_CREATED', 'Vehicle', vehicle.id, {
+      description: `Added ${vehicle.model} vehicle`,
+      name: vehicle.model,
+    });
     res.status(201).json(vehicle);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -111,6 +116,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const vehicle = await prisma.vehicle.update({ where: { id: req.params.id }, data });
+    await logAudit(req, 'VEHICLE_UPDATED', 'Vehicle', vehicle.id, {
+      description: `Updated ${vehicle.model} vehicle`,
+      name: vehicle.model,
+    });
     res.json(vehicle);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -119,7 +128,12 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 
 // DELETE vehicle (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
+  const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
   await prisma.vehicle.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'VEHICLE_DELETED', 'Vehicle', req.params.id, {
+    description: `Deleted ${vehicle?.model || req.params.id} vehicle`,
+    name: vehicle?.model,
+  });
   res.json({ message: 'Vehicle deleted' });
 });
 

@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Search, Eye, Shield, UserCheck, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, Search, Eye, Shield, UserCheck, Edit2, Trash2, X, AlertCircle, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../../services/api';
-
-const ADMIN_SECRET_PIN = '1234';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminUsers = () => {
+  const getDefaultPassword = (role) => {
+    if (role === 'admin') return 'admin1234';
+    if (role === 'staff') return 'staff1234';
+    return '';
+  };
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,11 +20,31 @@ const AdminUsers = () => {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({});
-  const [adminPin, setAdminPin] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createData, setCreateData] = useState({
+    name: '',
+    username: '',
+    email: '',
+    phone: '',
+    address: '',
+    country: 'Sri Lanka',
+    idNumber: '',
+    idType: 'nic',
+    password: 'staff1234',
+    confirmPassword: 'staff1234',
+    status: 'ACTIVE',
+    role: 'staff'
+  });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const { user: currentUser } = useAuth();
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    if (currentUser?.role !== 'admin') {
+      setLoading(false);
+      setError('Only the main admin can manage user accounts');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -32,11 +57,11 @@ const AdminUsers = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = searchTerm === '' ||
@@ -55,20 +80,73 @@ const AdminUsers = () => {
 
   const handleEditClick = (user) => {
     setEditData({ ...user });
-    setAdminPin('');
     setShowEditModal(true);
   };
 
-  const handleUpdateUser = async () => {
-    if (editData.role === 'admin') {
-      if (!adminPin || adminPin !== ADMIN_SECRET_PIN) {
-        toast.error('Invalid Admin PIN');
-        return;
-      }
+  const resetCreateForm = () => {
+    setCreateData({
+      name: '',
+      username: '',
+      email: '',
+      phone: '',
+      address: '',
+      country: 'Sri Lanka',
+      idNumber: '',
+      idType: 'nic',
+      password: 'staff1234',
+      confirmPassword: 'staff1234',
+      status: 'ACTIVE',
+      role: 'staff'
+    });
+  };
+
+  const handleCreateClick = () => {
+    resetCreateForm();
+    setShowCreateModal(true);
+  };
+
+  const handleCreateRoleChange = (role) => {
+    const defaultPassword = getDefaultPassword(role);
+    setCreateData({
+      ...createData,
+      role,
+      password: defaultPassword,
+      confirmPassword: defaultPassword
+    });
+  };
+
+  const handleCreateStaff = async () => {
+    if (createData.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
     }
+    if (createData.password !== createData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
     try {
-      const { id, name, username, email, phone, address, country } = editData;
-      await API.put(`/auth/users/${id}`, { name, username, email, phone, address, country });
+      const { confirmPassword, ...payload } = createData;
+      await API.post('/auth/users', {
+        ...payload,
+        name: payload.name.trim(),
+        username: payload.username.trim(),
+        email: payload.email.trim() || null,
+        idNumber: payload.idNumber.trim().toUpperCase() || null
+      });
+      toast.success('User account created successfully');
+      setShowCreateModal(false);
+      resetCreateForm();
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Create account failed');
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    try {
+      const { id, name, username, email, phone, address, country, status, role, password } = editData;
+      await API.put(`/auth/users/${id}`, { name, username, email, phone, address, country, status, role, password: password || undefined });
       toast.success('User updated successfully');
       setShowEditModal(false);
       fetchUsers();
@@ -84,17 +162,10 @@ const AdminUsers = () => {
       return;
     }
     setUserToDelete(user);
-    setAdminPin('');
     setShowDeleteConfirm(true);
   };
 
   const confirmDelete = async () => {
-    if (userToDelete.role === 'admin') {
-      if (!adminPin || adminPin !== ADMIN_SECRET_PIN) {
-        toast.error('Invalid Admin PIN');
-        return;
-      }
-    }
     try {
       await API.delete(`/auth/users/${userToDelete.id}`);
       toast.success('User deleted');
@@ -111,6 +182,13 @@ const AdminUsers = () => {
       return (
         <span className="px-2 py-1 inline-flex text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
           <Shield size={12} className="mr-1" /> Admin
+        </span>
+      );
+    }
+    if (role === 'staff') {
+      return (
+        <span className="px-2 py-1 inline-flex text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+          <Shield size={12} className="mr-1" /> Staff Member
         </span>
       );
     }
@@ -143,14 +221,19 @@ const AdminUsers = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Registered Users</h1>
+          <h1 className="text-2xl font-bold text-primary">User Accounts</h1>
           <p className="text-sm text-gray-500 mt-1">Total Users: {users.length}</p>
         </div>
-        <button onClick={fetchUsers} className="text-primary hover:text-secondary transition" title="Refresh">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleCreateClick} className="btn-primary flex items-center gap-2">
+            <UserPlus size={18} /> Add User
+          </button>
+          <button onClick={fetchUsers} className="text-primary hover:text-secondary transition" title="Refresh">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Search and Filter */}
@@ -172,6 +255,7 @@ const AdminUsers = () => {
         >
           <option value="all">All Roles</option>
           <option value="user">Customers</option>
+          <option value="staff">Staff Members</option>
           <option value="admin">Admins</option>
         </select>
       </div>
@@ -185,6 +269,7 @@ const AdminUsers = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
@@ -192,7 +277,7 @@ const AdminUsers = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                   No users found matching your criteria
                 </td>
               </tr>
@@ -219,6 +304,9 @@ const AdminUsers = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getRoleBadge(user.role)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {user.status || 'ACTIVE'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
@@ -255,6 +343,53 @@ const AdminUsers = () => {
         </table>
       </div>
 
+      {/* Create Account Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-xl font-bold text-primary">Add Admin, Staff, or Customer</h2>
+              <button onClick={() => setShowCreateModal(false)}><X size={24} /></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateStaff(); }} className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input type="text" placeholder="Full Name *" value={createData.name} onChange={(e) => setCreateData({...createData, name: e.target.value})} className="input-field" required />
+              <input type="text" placeholder="Username *" value={createData.username} onChange={(e) => setCreateData({...createData, username: e.target.value})} className="input-field" required />
+              <input type="email" placeholder="Email" value={createData.email} onChange={(e) => setCreateData({...createData, email: e.target.value})} className="input-field" />
+              <input type="tel" placeholder="Phone" value={createData.phone} onChange={(e) => setCreateData({...createData, phone: e.target.value})} className="input-field" />
+              <input type="text" placeholder="Address" value={createData.address} onChange={(e) => setCreateData({...createData, address: e.target.value})} className="input-field" />
+              <input type="text" placeholder="Country" value={createData.country} onChange={(e) => setCreateData({...createData, country: e.target.value})} className="input-field" />
+              <div>
+                <input type="text" placeholder="NIC / ID Number" value={createData.idNumber} onChange={(e) => setCreateData({...createData, idNumber: e.target.value})} className="input-field" />
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={() => setCreateData({...createData, idType: 'nic'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
+                  <button type="button" onClick={() => setCreateData({...createData, idType: 'passport'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+                </div>
+              </div>
+              <select value={createData.role} onChange={(e) => handleCreateRoleChange(e.target.value)} className="input-field">
+                <option value="admin">Admin</option>
+                <option value="staff">Staff Member</option>
+                <option value="user">Customer</option>
+              </select>
+              {(createData.role === 'staff' || createData.role === 'admin') && (
+                <p className="md:col-span-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
+                  Default password is {getDefaultPassword(createData.role)}. Staff must set a new password on first login.
+                </p>
+              )}
+              <select value={createData.status} onChange={(e) => setCreateData({...createData, status: e.target.value})} className="input-field">
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+              <input type="password" placeholder="Password *" value={createData.password} onChange={(e) => setCreateData({...createData, password: e.target.value})} className="input-field" required />
+              <input type="password" placeholder="Confirm Password *" value={createData.confirmPassword} onChange={(e) => setCreateData({...createData, confirmPassword: e.target.value})} className="input-field" required />
+              <div className="flex gap-3 pt-2 md:col-span-2">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-outline flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Create User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* View Details Modal */}
       {showModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -286,7 +421,7 @@ const AdminUsers = () => {
           <div className="bg-white rounded-2xl max-w-md w-full">
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-xl font-bold text-primary">
-                {editData.role === 'admin' ? 'Edit Admin' : 'Edit User'}
+                {editData.role === 'admin' ? 'Edit Admin' : editData.role === 'staff' ? 'Edit Staff Member' : 'Edit Customer'}
               </h2>
               <button onClick={() => setShowEditModal(false)}><X size={24} /></button>
             </div>
@@ -297,9 +432,16 @@ const AdminUsers = () => {
               <input type="tel" placeholder="Phone" value={editData.phone || ''} onChange={(e) => setEditData({...editData, phone: e.target.value})} className="input-field" />
               <input type="text" placeholder="Address" value={editData.address || ''} onChange={(e) => setEditData({...editData, address: e.target.value})} className="input-field" />
               <input type="text" placeholder="Country" value={editData.country || ''} onChange={(e) => setEditData({...editData, country: e.target.value})} className="input-field" />
-              {editData.role === 'admin' && (
-                <input type="password" placeholder="Admin PIN *" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} className="input-field" required />
-              )}
+              <select value={editData.role || 'user'} onChange={(e) => setEditData({...editData, role: e.target.value})} className="input-field">
+                <option value="admin">Admin</option>
+                <option value="staff">Staff Member</option>
+                <option value="user">Customer</option>
+              </select>
+              <select value={editData.status || 'ACTIVE'} onChange={(e) => setEditData({...editData, status: e.target.value})} className="input-field">
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+              <input type="password" placeholder="Reset Password (optional)" value={editData.password || ''} onChange={(e) => setEditData({...editData, password: e.target.value})} className="input-field" />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowEditModal(false)} className="btn-outline flex-1">Cancel</button>
                 <button type="submit" className="btn-primary flex-1">Update</button>
@@ -314,14 +456,11 @@ const AdminUsers = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full">
             <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-xl font-bold text-red-600">Delete {userToDelete.role === 'admin' ? 'Admin' : 'User'}</h2>
+              <h2 className="text-xl font-bold text-red-600">Delete {userToDelete.role === 'admin' ? 'Admin' : userToDelete.role === 'staff' ? 'Staff Member' : 'Customer'}</h2>
               <button onClick={() => setShowDeleteConfirm(false)}><X size={24} /></button>
             </div>
             <div className="p-4">
               <p className="mb-4">Are you sure you want to delete <strong>{userToDelete.name}</strong>?</p>
-              {userToDelete.role === 'admin' && (
-                <input type="password" placeholder="Admin PIN *" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} className="input-field mb-4" required />
-              )}
               <div className="flex gap-3">
                 <button onClick={() => setShowDeleteConfirm(false)} className="btn-outline flex-1">Cancel</button>
                 <button onClick={confirmDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg flex-1 hover:bg-red-700 transition">Delete</button>

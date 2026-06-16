@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,7 +8,8 @@ const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const dashboardPath = user?.role === 'admin' || user?.role === 'staff' ? '/admin/dashboard' : '/customer/dashboard';
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -47,7 +48,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <button
-            onClick={() => handleNavigation(isAdmin ? '/admin' : '/')}
+            onClick={() => handleNavigation(user ? dashboardPath : '/')}
             className="text-2xl font-playfair font-bold hover:text-cta transition"
           >
             SerendiGo
@@ -68,10 +69,10 @@ const Navbar = () => {
 
             {user && isAdmin && (
               <button
-                onClick={() => handleNavigation('/admin')}
-                className={`flex items-center gap-1 transition ${getActiveClass('/admin')}`}
+                onClick={() => handleNavigation(dashboardPath)}
+                className={`flex items-center gap-1 transition ${getActiveClass(dashboardPath)}`}
               >
-                <Shield size={18} /> Admin Dashboard
+                <Shield size={18} /> {user.role === 'staff' ? 'Staff Dashboard' : 'Admin Dashboard'}
               </button>
             )}
 
@@ -79,6 +80,12 @@ const Navbar = () => {
               <>
                 {!isAdmin && (
                   <>
+                    <button
+                      onClick={() => handleNavigation('/customer/dashboard')}
+                      className={`flex items-center gap-1 transition ${getActiveClass('/customer/dashboard')}`}
+                    >
+                      <User size={18} /> Dashboard
+                    </button>
                     <button
                       onClick={() => handleNavigation('/my-bookings')}
                       className={`flex items-center gap-1 transition ${getActiveClass('/my-bookings')}`}
@@ -130,16 +137,22 @@ const Navbar = () => {
               ))}
             {user && isAdmin && (
               <button
-                onClick={() => handleNavigation('/admin')}
-                className={`block w-full text-left transition ${location.pathname === '/admin' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+                onClick={() => handleNavigation(dashboardPath)}
+                className={`block w-full text-left transition ${location.pathname === dashboardPath ? 'text-cta font-semibold' : 'hover:text-cta'}`}
               >
-                Admin Dashboard
+                {user.role === 'staff' ? 'Staff Dashboard' : 'Admin Dashboard'}
               </button>
             )}
             {user ? (
               <>
                 {!isAdmin && (
                   <>
+                    <button
+                      onClick={() => handleNavigation('/customer/dashboard')}
+                      className={`block w-full text-left transition ${location.pathname === '/customer/dashboard' ? 'text-cta font-semibold' : 'hover:text-cta'}`}
+                    >
+                      Dashboard
+                    </button>
                     <button
                       onClick={() => handleNavigation('/my-bookings')}
                       className={`block w-full text-left transition ${location.pathname === '/my-bookings' ? 'text-cta font-semibold' : 'hover:text-cta'}`}

@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const upload = require('../middleware/upload');
+const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -10,7 +11,7 @@ const adminOnly = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!['admin', 'staff'].includes(decoded.role)) return res.status(403).json({ error: 'Admin or staff only' });
     req.user = decoded;
     next();
   } catch {
@@ -129,6 +130,10 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       guideId: guideIds[0] || null,
     };
     const pkg = await prisma.tourPackage.create({ data });
+    await logAudit(req, 'PACKAGE_CREATED', 'TourPackage', pkg.id, {
+      description: `Added ${pkg.name} tour package`,
+      name: pkg.name,
+    });
     res.status(201).json(pkg);
   } catch (error) {
     console.error(error);
@@ -164,6 +169,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const pkg = await prisma.tourPackage.update({ where: { id: req.params.id }, data });
+    await logAudit(req, 'PACKAGE_UPDATED', 'TourPackage', pkg.id, {
+      description: `Updated ${pkg.name} tour package`,
+      name: pkg.name,
+    });
     res.json(pkg);
   } catch (error) {
     console.error(error);
@@ -172,7 +181,12 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 });
 
 router.delete('/:id', adminOnly, async (req, res) => {
+  const pkg = await prisma.tourPackage.findUnique({ where: { id: req.params.id } });
   await prisma.tourPackage.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'PACKAGE_DELETED', 'TourPackage', req.params.id, {
+    description: `Deleted ${pkg?.name || req.params.id} tour package`,
+    name: pkg?.name,
+  });
   res.json({ message: 'Package deleted' });
 });
 

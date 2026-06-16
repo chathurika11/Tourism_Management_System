@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const upload = require('../middleware/upload');
+const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -10,7 +11,7 @@ const adminOnly = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!['admin', 'staff'].includes(decoded.role)) return res.status(403).json({ error: 'Admin or staff only' });
     req.user = decoded;
     next();
   } catch {
@@ -72,6 +73,10 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       rating: 0
     };
     const hotel = await prisma.hotel.create({ data });
+    await logAudit(req, 'HOTEL_CREATED', 'Hotel', hotel.id, {
+      description: `Added ${hotel.name} hotel`,
+      name: hotel.name,
+    });
     res.status(201).json(hotel);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -95,6 +100,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const hotel = await prisma.hotel.update({ where: { id: req.params.id }, data });
+    await logAudit(req, 'HOTEL_UPDATED', 'Hotel', hotel.id, {
+      description: `Updated ${hotel.name} hotel`,
+      name: hotel.name,
+    });
     res.json(hotel);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -103,7 +112,12 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 
 // DELETE hotel (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
+  const hotel = await prisma.hotel.findUnique({ where: { id: req.params.id } });
   await prisma.hotel.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'HOTEL_DELETED', 'Hotel', req.params.id, {
+    description: `Deleted ${hotel?.name || req.params.id} hotel`,
+    name: hotel?.name,
+  });
   res.json({ message: 'Hotel deleted' });
 });
 

@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const { ensureRoles, assignRoleToUser } = require('./services/roles');
 const prisma = new PrismaClient();
 
 // ---------- Hotels Data (same as frontend) ----------
@@ -44,6 +46,32 @@ const tourGuides = [
 
 async function seed() {
   try {
+    await ensureRoles();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin1234';
+    const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+    const admin = await prisma.user.upsert({
+      where: { username: 'admin' },
+      update: { name: 'Main Admin', role: 'admin', password: hashedAdminPassword, passwordHash: hashedAdminPassword, status: 'ACTIVE', emailVerified: true, mustChangePassword: false },
+      create: {
+        name: 'Main Admin',
+        username: 'admin',
+        email: process.env.ADMIN_EMAIL || 'admin@serendigo.local',
+        phone: '+94000000000',
+        address: 'SerendiGo Office',
+        country: 'Sri Lanka',
+        idNumber: null,
+        idType: null,
+        password: hashedAdminPassword,
+        passwordHash: hashedAdminPassword,
+        status: 'ACTIVE',
+        emailVerified: true,
+        mustChangePassword: false,
+        role: 'admin'
+      }
+    });
+    await assignRoleToUser(admin.id, 'ADMIN');
+    console.log('Main admin ready: username=admin password=' + adminPassword);
+
     for (const hotel of hotels) {
       await prisma.hotel.upsert({
         where: { id: hotel.id.toString() },

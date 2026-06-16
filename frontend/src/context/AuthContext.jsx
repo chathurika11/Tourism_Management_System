@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
       toast.success(`Welcome ${res.data.user.name}!`);
-      return true;
+      return res.data.user;
     } catch (err) {
       toast.error(err.response?.data?.error || 'Registration failed');
       return false;
@@ -45,10 +45,24 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
       toast.success(`Welcome back, ${res.data.user.name}!`);
-      return true;
+      return res.data.user;
     } catch (err) {
       toast.error(err.response?.data?.error || 'Invalid username or password');
       return false;
+    }
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const res = await API.put('/auth/change-password', { currentPassword, newPassword });
+      const updatedUser = { ...user, ...res.data.user, mustChangePassword: false };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      toast.success('Password changed successfully');
+      return updatedUser;
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Password change failed');
+      return null;
     }
   };
 
@@ -86,12 +100,13 @@ const forgotPassword = async (username) => {
     toast.success('Logged out');
   };
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const isMainAdmin = user?.role === 'admin';
 
   return (
     <AuthContext.Provider value={{ 
       user, loading, register, login, 
-      forgotPassword, resetPassword, logout, isAdmin 
+      forgotPassword, resetPassword, changePassword, logout, isAdmin, isMainAdmin 
     }}>
       {children}
     </AuthContext.Provider>

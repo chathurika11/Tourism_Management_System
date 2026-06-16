@@ -1,6 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
+const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -21,7 +22,7 @@ const adminOnly = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!['admin', 'staff'].includes(decoded.role)) return res.status(403).json({ error: 'Admin only' });
     req.user = decoded;
     next();
   } catch {
@@ -65,6 +66,10 @@ router.put('/hotel/:id/reply', adminOnly, async (req, res) => {
     where: { id: req.params.id },
     data: { reply: req.body.reply, repliedAt: new Date() }
   });
+  await logAudit(req, 'FEEDBACK_REPLIED', 'HotelFeedback', updated.id, {
+    description: 'Replied to hotel feedback',
+    feedbackType: 'hotel',
+  });
   res.json(updated);
 });
 
@@ -103,6 +108,10 @@ router.put('/guide/:id/reply', adminOnly, async (req, res) => {
   const updated = await prisma.guideFeedback.update({
     where: { id: req.params.id },
     data: { reply: req.body.reply, repliedAt: new Date() }
+  });
+  await logAudit(req, 'FEEDBACK_REPLIED', 'GuideFeedback', updated.id, {
+    description: 'Replied to guide feedback',
+    feedbackType: 'guide',
   });
   res.json(updated);
 });
@@ -143,6 +152,10 @@ router.put('/vehicle/:id/reply', adminOnly, async (req, res) => {
     where: { id: req.params.id },
     data: { reply: req.body.reply, repliedAt: new Date() }
   });
+  await logAudit(req, 'FEEDBACK_REPLIED', 'VehicleFeedback', updated.id, {
+    description: 'Replied to vehicle feedback',
+    feedbackType: 'vehicle',
+  });
   res.json(updated);
 });
 
@@ -181,6 +194,10 @@ router.put('/tour/:id/reply', adminOnly, async (req, res) => {
   const updated = await prisma.tourFeedback.update({
     where: { id: req.params.id },
     data: { reply: req.body.reply, repliedAt: new Date() }
+  });
+  await logAudit(req, 'FEEDBACK_REPLIED', 'TourFeedback', updated.id, {
+    description: 'Replied to tour package feedback',
+    feedbackType: 'tour',
   });
   res.json(updated);
 });

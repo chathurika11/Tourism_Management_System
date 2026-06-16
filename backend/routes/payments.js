@@ -30,7 +30,7 @@ router.post('/process', async (req, res) => {
     // Verify the booking belongs to the logged-in user (or admin)
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
-    if (booking.userId !== decoded.id && decoded.role !== 'admin') {
+    if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (booking.paymentStatus === 'paid') {

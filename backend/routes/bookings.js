@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    const where = decoded.role === 'admin' ? {} : { userId: decoded.id };
+    const where = ['admin', 'staff'].includes(decoded.role) ? {} : { userId: decoded.id };
 
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
@@ -112,7 +112,7 @@ router.put('/:id', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
     if (!booking) return res.status(404).json({ error: 'Not found' });
-    if (booking.userId !== decoded.id && decoded.role !== 'admin')
+    if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role))
       return res.status(403).json({ error: 'Forbidden' });
     const updated = await prisma.booking.update({
       where: { id: req.params.id },
@@ -133,7 +133,7 @@ router.delete('/:id', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
     if (!booking) return res.status(404).json({ error: 'Not found' });
-    if (booking.userId !== decoded.id && decoded.role !== 'admin')
+    if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role))
       return res.status(403).json({ error: 'Forbidden' });
     await prisma.booking.delete({ where: { id: req.params.id } });
     res.json({ message: 'Deleted' });
@@ -157,7 +157,7 @@ router.post('/process', async (req, res) => {
 
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
-    if (booking.userId !== decoded.id && decoded.role !== 'admin')
+    if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role))
       return res.status(403).json({ error: 'Forbidden' });
     if (booking.paymentStatus === 'paid')
       return res.status(400).json({ error: 'Already paid' });

@@ -12,18 +12,68 @@ model User {
   name          String
   username      String    @unique
   email         String?
+  passwordHash  String?   @map("password_hash")
+  status        String    @default("ACTIVE")
+  emailVerified Boolean   @default(false)
+  mustChangePassword Boolean? @default(false)
+  verifyToken   String?
   phone         String?
   address       String?
   country       String?
   idNumber      String?   // NIC or Passport number
   idType        String?   // "nic" or "passport"
-  role          String    @default("user")
+  role          String    @default("user") // legacy single-role field kept for existing code/data
   password      String
   resetToken    String?
   resetExpires  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   bookings      Booking[]
+  userRoles     UserRole[]
+  auditLogs     AuditLog[] @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Role {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @map("user_id") @db.ObjectId
+  roleId    String   @map("role_id") @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId   String?  @map("actor_id") @db.ObjectId
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model Booking {

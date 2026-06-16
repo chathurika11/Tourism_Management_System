@@ -19,14 +19,15 @@ const Login = () => {
       return;
     }
     setLoading(true);
-    const success = await login(username, password);
+    const loggedInUser = await login(username, password);
     setLoading(false);
-    if (success) {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (user?.role === 'admin') {
-        navigate('/admin');
+    if (loggedInUser) {
+      if (loggedInUser.mustChangePassword) {
+        navigate('/change-password');
+      } else if (loggedInUser.role === 'admin' || loggedInUser.role === 'staff') {
+        navigate('/admin/dashboard');
       } else {
-        navigate('/');
+        navigate('/customer/dashboard');
       }
     }
   };
@@ -42,7 +43,7 @@ const Login = () => {
         </div>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Username</label>
+            <label className="block text-gray-700 mb-2">Email / Username</label>
             <div className="relative">
               <AtSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input 
@@ -50,7 +51,7 @@ const Login = () => {
                 value={username} 
                 onChange={(e) => setUsername(e.target.value)} 
                 className="input-field pl-10" 
-                placeholder="Enter your username"
+                placeholder="Enter your email or username"
                 required 
               />
             </div>
@@ -84,7 +85,7 @@ const Login = () => {
         {/* Demo admin hint removed */}
         
         <p className="text-center mt-6 text-gray-600">
-          Don't have an account?{' '}
+          Don't have a customer account?{' '}
           <Link to="/register" className="text-secondary font-semibold hover:underline">Register here</Link>
         </p>
       </div>

@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const upload = require('../middleware/upload');
+const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -10,7 +11,7 @@ const adminOnly = (req, res, next) => {
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!['admin', 'staff'].includes(decoded.role)) return res.status(403).json({ error: 'Admin or staff only' });
     req.user = decoded;
     next();
   } catch {
@@ -79,6 +80,10 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       image: imageUrl
     };
     const guide = await prisma.guide.create({ data });
+    await logAudit(req, 'GUIDE_CREATED', 'Guide', guide.id, {
+      description: `Added ${guide.name} guide`,
+      name: guide.name,
+    });
     res.status(201).json(guide);
   } catch (error) {
     console.error(error);
@@ -103,6 +108,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const guide = await prisma.guide.update({ where: { id: req.params.id }, data });
+    await logAudit(req, 'GUIDE_UPDATED', 'Guide', guide.id, {
+      description: `Updated ${guide.name} guide`,
+      name: guide.name,
+    });
     res.json(guide);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -111,7 +120,12 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 
 // DELETE guide (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
+  const guide = await prisma.guide.findUnique({ where: { id: req.params.id } });
   await prisma.guide.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'GUIDE_DELETED', 'Guide', req.params.id, {
+    description: `Deleted ${guide?.name || req.params.id} guide`,
+    name: guide?.name,
+  });
   res.json({ message: 'Guide deleted' });
 });
 

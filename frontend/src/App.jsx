@@ -21,7 +21,10 @@ const LoadingSpinner = () => (
 const AdminRedirect = ({ children }) => {
   const { user } = useAuth();
   if (user?.role === 'admin') {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  if (user?.role === 'staff') {
+    return <Navigate to="/admin/dashboard" replace />;
   }
   return children;
 };
@@ -66,6 +69,12 @@ const AdminFeedbacks = lazy(() => import('./pages/Admin/AdminFeedbacks'));
 const MyReviews = lazy(() => import('./pages/MyReviews'));
 const AdminTourPackages = lazy(() => import('./pages/Admin/AdminTourPackages'));
 const AdminDistricts = lazy(() => import('./pages/Admin/AdminDistricts'));   // Keep only this line
+const AccessDenied = lazy(() => import('./pages/AccessDenied'));
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
+const Profile = lazy(() => import('./pages/Profile'));
+const AuditLogs = lazy(() => import('./pages/Admin/AuditLogs'));
+const CustomersManagement = lazy(() => import('./pages/CustomersManagement'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 
 function App() {
   return (
@@ -82,8 +91,9 @@ function App() {
                   <Route path="/" element={<AdminRedirect><LandingPage /></AdminRedirect>} />
                   <Route path="/about" element={<AdminRedirect><AboutUs /></AdminRedirect>} />
                   <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+                  <Route path="/register" element={<AdminRedirect><Register /></AdminRedirect>} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/access-denied" element={<AccessDenied />} />
                   <Route path="/tours" element={<AdminRedirect><TourPackages /></AdminRedirect>} />
                   <Route path="/tours/:id" element={<AdminRedirect><TourDetailPage /></AdminRedirect>} />
                   <Route path="/hotels" element={<AdminRedirect><Hotels /></AdminRedirect>} />
@@ -94,20 +104,30 @@ function App() {
                   <Route path="/guides/:id" element={<AdminRedirect><GuideDetailPage /></AdminRedirect>} />
                   <Route path="/plan-tour" element={<AdminRedirect><CustomBooking /></AdminRedirect>} />
                   <Route path="/booking/:id" element={<PrivateRoute><AdminRedirect><BookingForm /></AdminRedirect></PrivateRoute>} />
-                  <Route path="/my-bookings" element={<PrivateRoute><AdminRedirect><MyBookings /></AdminRedirect></PrivateRoute>} />
-                  <Route path="/payment" element={<PrivateRoute><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
+                  <Route path="/customer/dashboard" element={<PrivateRoute roles={['user']}><CustomerDashboard /></PrivateRoute>} />
+                  <Route path="/change-password" element={<PrivateRoute><ChangePassword /></PrivateRoute>} />
+                  <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+                  <Route path="/my-bookings" element={<PrivateRoute roles={['user', 'admin', 'staff']}><AdminRedirect><MyBookings /></AdminRedirect></PrivateRoute>} />
+                  <Route path="/payment" element={<PrivateRoute roles={['user', 'admin', 'staff']}><AdminRedirect><Payment /></AdminRedirect></PrivateRoute>} />
                   <Route path="/my-reviews" element={<PrivateRoute><MyReviews /></PrivateRoute>} />
+                  <Route path="/staff/dashboard" element={<PrivateRoute roles={['staff', 'admin']}><Navigate to="/admin/dashboard" replace /></PrivateRoute>} />
+                  <Route path="/staff/bookings" element={<PrivateRoute roles={['staff', 'admin']}><AdminBookings /></PrivateRoute>} />
+                  <Route path="/staff/support" element={<PrivateRoute roles={['staff', 'admin']}><AdminFeedbacks /></PrivateRoute>} />
+                  <Route path="/customers" element={<PrivateRoute roles={['staff', 'admin']}><CustomersManagement /></PrivateRoute>} />
 
                   {/* Admin routes */}
-                  <Route path="/admin" element={<PrivateRoute adminOnly><AdminDashboard /></PrivateRoute>}>
+                  <Route path="/admin" element={<PrivateRoute roles={['admin', 'staff']}><AdminDashboard /></PrivateRoute>}>
+                    <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                    <Route path="dashboard" element={null} />
                     <Route path="hotels" element={<AdminHotels />} />
                     <Route path="vehicles" element={<AdminVehicles />} />
                     <Route path="guides" element={<AdminGuides />} />
                     <Route path="bookings" element={<AdminBookings />} />
-                    <Route path="reports" element={<ReportsAnalytics />} />
-                    <Route path="company-commission" element={<CompanyCommission />} />
+                    <Route path="reports" element={<PrivateRoute roles={['admin']}><ReportsAnalytics /></PrivateRoute>} />
+                    <Route path="company-commission" element={<PrivateRoute roles={['admin']}><CompanyCommission /></PrivateRoute>} />
                     <Route path="feedbacks" element={<AdminFeedbacks />} />
-                    <Route path="users" element={<AdminUsers />} />
+                    <Route path="users" element={<PrivateRoute roles={['admin']}><AdminUsers /></PrivateRoute>} />
+                    <Route path="logs" element={<PrivateRoute roles={['admin']}><AuditLogs /></PrivateRoute>} />
                     <Route path="tour-packages" element={<AdminTourPackages />} />
                     <Route path="districts" element={<AdminDistricts />} />
                   </Route>

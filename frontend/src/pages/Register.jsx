@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, User, Mail, Lock, Phone, Home, Globe, AtSign, Shield, UserCircle, IdCard, Key, AlertCircle } from 'lucide-react';
+import { UserPlus, User, Mail, Lock, Phone, Home, Globe, AtSign, UserCircle, IdCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import registerImage from '../images/register.jpeg';
 
@@ -15,19 +15,14 @@ const Register = () => {
   const [countryCode, setCountryCode] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [idType, setIdType] = useState('nic');
-  const [adminPin, setAdminPin] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('user');
   const [loading, setLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [idError, setIdError] = useState('');
-  const [showAdminPin, setShowAdminPin] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
-
-  const ADMIN_SECRET_PIN = '1234'; // Updated PIN
 
   const countryCodes = {
     'Sri Lanka': '+94',
@@ -154,12 +149,6 @@ const Register = () => {
     if (idNumber) validateIdNumber(idNumber, type);
   };
 
-  const handleRoleChange = (newRole) => {
-    setRole(newRole);
-    setShowAdminPin(newRole === 'admin');
-    if (newRole === 'admin') setIdType('nic');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validatePassword(password)) {
@@ -182,34 +171,14 @@ const Register = () => {
       toast.error('Please select a country');
       return;
     }
-    if (role === 'admin') {
-      if (selectedCountry !== 'Sri Lanka') {
-        toast.error('Only Sri Lankan citizens can register as Admin');
-        return;
-      }
-      if (adminPin !== ADMIN_SECRET_PIN) {
-        toast.error('Invalid Admin PIN. Access denied.');
-        return;
-      }
-      if (!idNumber) {
-        toast.error('NIC Number is required for Admin registration');
-        return;
-      }
-      const nicValidation = validateSriLankanNIC(idNumber);
-      if (!nicValidation.valid) {
-        toast.error(nicValidation.message);
-        return;
-      }
-    } else {
-      if (!idNumber) {
-        toast.error('Please enter your NIC or Passport Number');
-        return;
-      }
-      const isValid = validateIdNumber(idNumber, idType);
-      if (!isValid) {
-        toast.error(idError);
-        return;
-      }
+    if (!idNumber) {
+      toast.error('Please enter your NIC or Passport Number');
+      return;
+    }
+    const isValid = validateIdNumber(idNumber, idType);
+    if (!isValid) {
+      toast.error(idError);
+      return;
     }
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length < 9) {
@@ -225,16 +194,13 @@ const Register = () => {
       address: address.trim(),
       country: selectedCountry,
       password: password,
-      role: role,
       idNumber: idNumber.trim().toUpperCase(),
       idType: idType
     };
     const success = await register(userData);
     setLoading(false);
     if (success) {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (user?.role === 'admin') navigate('/admin');
-      else navigate('/');
+      navigate('/');
     }
   };
 
@@ -295,19 +261,16 @@ const Register = () => {
             </div>
           </div>
           <div>
-            <label className="block text-gray-700 mb-1">{role === 'admin' ? 'NIC Number *' : 'ID / Passport Number *'}</label>
+            <label className="block text-gray-700 mb-1">ID / Passport Number *</label>
             <div className="relative">
               <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="text" value={idNumber} onChange={handleIdChange} className="input-field pl-10" placeholder={role === 'admin' ? "Enter NIC" : "Enter NIC or Passport"} required />
+              <input type="text" value={idNumber} onChange={handleIdChange} className="input-field pl-10" placeholder="Enter NIC or Passport" required />
             </div>
             {idError && <p className="text-red-500 text-xs mt-1">{idError}</p>}
-            {role !== 'admin' && (
-              <div className="flex gap-2 mt-2">
-                <button type="button" onClick={() => handleIdTypeChange('nic')} className={`text-xs px-2 py-1 rounded ${idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
-                <button type="button" onClick={() => handleIdTypeChange('passport')} className={`text-xs px-2 py-1 rounded ${idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
-              </div>
-            )}
-            {role === 'admin' && <p className="text-xs text-gray-400 mt-1">Format: 9 digits + V OR 12 digits</p>}
+            <div className="flex gap-2 mt-2">
+              <button type="button" onClick={() => handleIdTypeChange('nic')} className={`text-xs px-2 py-1 rounded ${idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
+              <button type="button" onClick={() => handleIdTypeChange('passport')} className={`text-xs px-2 py-1 rounded ${idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+            </div>
           </div>
           <div>
             <label className="block text-gray-700 mb-1">Password *</label>
@@ -325,35 +288,12 @@ const Register = () => {
               <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-field pl-10" required />
             </div>
           </div>
-          {showAdminPin && (
-            <div>
-              <label className="block text-gray-700 mb-1">Admin Registration PIN *</label>
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input type="password" value={adminPin} onChange={(e) => setAdminPin(e.target.value)} className="input-field pl-10" placeholder="Enter Admin PIN" required />
-              </div>
-            </div>
-          )}
+          
           <div className="md:col-span-2">
-            <label className="block text-gray-700 mb-2">Register as:</label>
-            <div className="flex gap-4">
-              <label className={`flex items-center gap-2 cursor-pointer p-3 border rounded-lg flex-1 transition ${role === 'user' ? 'border-primary bg-primary/5' : 'border-gray-200'}`}>
-                <input type="radio" name="role" value="user" checked={role === 'user'} onChange={(e) => handleRoleChange(e.target.value)} className="w-4 h-4 text-primary" />
-                <UserCircle size={20} className="text-primary" />
-                <div><span className="font-semibold">Customer</span><p className="text-xs text-gray-500">Book tours, hotels, vehicles</p></div>
-              </label>
-              <label className={`flex items-center gap-2 cursor-pointer p-3 border rounded-lg flex-1 transition ${role === 'admin' ? 'border-orange-500 bg-orange-50' : 'border-gray-200'}`}>
-                <input type="radio" name="role" value="admin" checked={role === 'admin'} onChange={(e) => handleRoleChange(e.target.value)} className="w-4 h-4 text-orange-600" />
-                <Shield size={20} className="text-orange-600" />
-                <div><span className="font-semibold">Admin</span><p className="text-xs text-gray-500">Manage system, users, bookings</p></div>
-              </label>
+            <div className="flex items-center gap-2 p-3 border border-primary bg-primary/5 rounded-lg">
+              <UserCircle size={20} className="text-primary" />
+              <div><span className="font-semibold">Customer Account</span><p className="text-xs text-gray-500">Book tours, hotels, vehicles</p></div>
             </div>
-            {role === 'admin' && (
-              <div className="mt-2 p-2 bg-yellow-50 rounded-lg flex items-start gap-2">
-                <AlertCircle size={16} className="text-yellow-600 mt-0.5" />
-                <p className="text-xs text-yellow-700"><strong>Admin Registration Requirements:</strong><br />• Must be a Sri Lankan citizen<br />• Valid NIC required<br />• Valid Admin PIN required</p>
-              </div>
-            )}
           </div>
           <div className="md:col-span-2">
             <button type="submit" disabled={loading} className="btn-primary w-full py-3 flex items-center justify-center gap-2">

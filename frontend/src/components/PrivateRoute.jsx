@@ -1,9 +1,15 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const PrivateRoute = ({ children, adminOnly = false }) => {
-  const { user, loading, isAdmin } = useAuth();
+const roleMatches = (userRole, allowedRoles) => {
+  if (!allowedRoles || allowedRoles.length === 0) return true;
+  return allowedRoles.map((role) => role.toLowerCase()).includes((userRole || '').toLowerCase());
+};
+
+const PrivateRoute = ({ children, adminOnly = false, roles = [] }) => {
+  const { user, loading, isMainAdmin } = useAuth();
+  const location = useLocation();
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -19,9 +25,17 @@ const PrivateRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // If admin only route and user is not admin, redirect to home
-  if (adminOnly && !isAdmin) {
-    return <Navigate to="/" replace />;
+  if (user.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  // If admin only route and user is not ADMIN, redirect to access denied
+  if (adminOnly && !isMainAdmin) {
+    return <Navigate to="/access-denied" replace />;
+  }
+
+  if (!adminOnly && !roleMatches(user.role, roles)) {
+    return <Navigate to="/access-denied" replace />;
   }
 
   // Render the protected component
