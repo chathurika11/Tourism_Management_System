@@ -1,0 +1,23 @@
+Login error: PrismaClientKnownRequestError: 
+Invalid `prisma.role.upsert()` invocation in
+E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\services\roles.js:9:23
+
+  6 
+  7 const ensureRoles = async () => {
+  8   for (const name of DEFAULT_ROLES) {
+→ 9     await prisma.role.upsert(
+Raw query failed. Code: `unknown`. Message: `Kind: Server selection timeout: None of the available servers suitable for criteria ReadPreference(Primary). Topology: { Type: ReplicaSetNoPrimary, Set Name: atlas-8b5t6r-shard-0, Max Set Version: 258, Max Election ID: 7fffffff0000000000000309, Servers: [ { Address: ac-szf9dl2-shard-00-01.sux1wcb.mongodb.net:27017, Type: RsSecondary, Average RTT: 252.646624ms, Last Update Time: 2026-06-16 17:14:55.831 +00:00:00, Max Wire Version: 25, Min Wire Version: 0, Replica Set Name: atlas-8b5t6r-shard-0, Replica Set Version: 258, Tags: {"nodeType": "ELECTABLE", "diskState": "READY", "region": "AP_SOUTH_1", "cacheState": "READY", "availabilityZone": "aps1-az3", "provider": "AWS", "workloadType": "OPERATIONAL"} }, { Address: ac-szf9dl2-shard-00-02.sux1wcb.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: timed out, labels: {} }, { Address: ac-szf9dl2-shard-00-00.sux1wcb.mongodb.net:27017, Type: RsSecondary, Average RTT: 265.016272ms, Last Update Time: 2026-06-16 17:14:44.575 +00:00:00, Max Wire Version: 25, Min Wire Version: 0, Replica Set Name: atlas-8b5t6r-shard-0, Replica Set Version: 258, Tags: {"availabilityZone": "aps1-az1", "provider": "AWS", "workloadType": "OPERATIONAL", "nodeType": "ELECTABLE", "diskState": "READY", "cacheState": "READY", "region": "AP_SOUTH_1"} } ] }, labels: {"TransientTransactionError"}`
+    at $n.handleRequestError (E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\node_modules\@prisma\client\runtime\library.js:121:7315)
+    at $n.handleAndLogRequestError (E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at async l (E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at async ensureRoles (E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\services\roles.js:9:5)
+    at async E:\RAD\TMS_PROJECT\Tourism_Management_System\backend\routes\auth.js:172:5 {
+  code: 'P2010',
+  clientVersion: '5.22.0',
+  meta: {
+    modelName: 'Role',
+    code: 'unknown',
+    message: 'Kind: Server selection timeout: None of the available servers suitable for criteria ReadPreference(Primary). Topology: { Type: ReplicaSetNoPrimary, Set Name: atlas-8b5t6r-shard-0, Max Set Version: 258, Max Election ID: 7fffffff0000000000000309, Servers: [ { Address: ac-szf9dl2-shard-00-01.sux1wcb.mongodb.net:27017, Type: RsSecondary, Average RTT: 252.646624ms, Last Update Time: 2026-06-16 17:14:55.831 +00:00:00, Max Wire Version: 25, Min Wire Version: 0, Replica Set Name: atlas-8b5t6r-shard-0, Replica Set Version: 258, Tags: {"nodeType": "ELECTABLE", "diskState": "READY", "region": "AP_SOUTH_1", "cacheState": "READY", "availabilityZone": "aps1-az3", "provider": "AWS", "workloadType": "OPERATIONAL"} }, { Address: ac-szf9dl2-shard-00-02.sux1wcb.mongodb.net:27017, Type: Unknown, Error: Kind: I/O error: timed out, labels: {} }, { Address: ac-szf9dl2-shard-00-00.sux1wcb.mongodb.net:27017, Type: RsSecondary, Average RTT: 265.016272ms, Last Update Time: 2026-06-16 17:14:44.575 +00:00:00, Max Wire Version: 25, Min Wire Version: 0, Replica Set Name: atlas-8b5t6r-shard-0, Replica Set Version: 258, Tags: {"availabilityZone": "aps1-az1", "provider": "AWS", "workloadType": "OPERATIONAL", "nodeType": "ELECTABLE", "diskState": "READY", "cacheState": "READY", "region": "AP_SOUTH_1"} } ] }, labels: {"TransientTransactionError"}'
+  }
+}
