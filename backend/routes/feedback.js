@@ -31,6 +31,14 @@ const adminOnly = (req, res, next) => {
 };
 
 const userSelect = { select: { id: true, name: true, email: true } };
+const EDIT_WINDOW_MS = 4 * 60 * 60 * 1000;
+const feedbackConfig = {
+  hotel: { model: 'hotelFeedback', itemId: 'hotelId', parentModel: 'hotel', ratingFields: { rating: true } },
+  guide: { model: 'guideFeedback', itemId: 'guideId', parentModel: 'guide', ratingFields: { rating: true, reviews: true } },
+  vehicle: { model: 'vehicleFeedback', itemId: 'vehicleId', parentModel: 'vehicle', ratingFields: { rating: true } },
+  tour: { model: 'tourFeedback', itemId: 'tourId', parentModel: 'tourPackage', ratingFields: { rating: true } },
+};
+
 const parseRating = (rating) => {
   const parsed = parseInt(rating, 10);
   if (Number.isNaN(parsed) || parsed < 1 || parsed > 5) return null;
@@ -44,6 +52,86 @@ const requireFeedbackFields = (res, itemId, rating, comment) => {
     return null;
   }
   return parsedRating;
+};
+
+const isWithinEditWindow = (date) => (
+  date && Date.now() - new Date(date).getTime() <= EDIT_WINDOW_MS
+);
+
+const recalculateRating = async (type, itemId) => {
+  const config = feedbackConfig[type];
+  const feedbacks = await prisma[config.model].findMany({ where: { [config.itemId]: itemId } });
+  if (!feedbacks.length) return;
+  const avgRating = feedbacks.reduce((sum, fb) => sum + fb.rating, 0) / feedbacks.length;
+  const data = { rating: parseFloat(avgRating.toFixed(1)) };
+  if (config.ratingFields.reviews) data.reviews = feedbacks.length;
+  await prisma[config.parentModel].update({ where: { id: itemId }, data });
+};
+
+const updateReply = async (req, res, type) => {
+  try {
+    const config = feedbackConfig[type];
+    const reply = req.body.reply?.trim();
+    if (!reply) return res.status(400).json({ error: 'Please write a reply' });
+
+    const existing = await prisma[config.model].findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Feedback not found' });
+    if (existing.reply && !isWithinEditWindow(existing.repliedAt)) {
+      return res.status(403).json({ error: 'Reply can only be edited within 4 hours' });
+    }
+
+    const updated = await prisma[config.model].update({
+      where: { id: req.params.id },
+      data: { reply, repliedAt: existing.repliedAt || new Date() }
+    });
+    await logAudit(req, 'FEEDBACK_REPLIED', `${type[0].toUpperCase()}${type.slice(1)}Feedback`, updated.id, {
+      description: `${existing.reply ? 'Edited reply for' : 'Replied to'} ${type} feedback`,
+      feedbackType: type,
+    });
+    res.json({ success: true, feedback: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const updateFeedback = async (req, res, type) => {
+  try {
+    const { id } = req.params;
+    const config = feedbackConfig[type];
+
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { rating, comment } = req.body;
+    const parsedRating = parseRating(rating);
+    if (!parsedRating || !comment?.trim()) {
+      return res.status(400).json({ error: 'Please provide rating and comment' });
+    }
+
+    const existing = await prisma[config.model].findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Feedback not found' });
+    if (existing.userId !== userId) return res.status(403).json({ error: 'You can only edit your own feedback' });
+    if (existing.reply) {
+      return res.status(403).json({ error: 'Feedback cannot be edited after an admin reply' });
+    }
+    if (!isWithinEditWindow(existing.createdAt)) {
+      return res.status(403).json({ error: 'Feedback can only be edited within 4 hours' });
+    }
+
+    const updated = await prisma[config.model].update({
+      where: { id },
+      data: { rating: parsedRating, comment: comment.trim() }
+    });
+    try {
+      await recalculateRating(type, existing[config.itemId]);
+    } catch (ratingError) {
+      console.error(`Recalculate ${type} rating error:`, ratingError);
+    }
+    res.json({ success: true, feedback: updated });
+  } catch (error) {
+    console.error(`Update ${type} feedback error:`, error);
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // ==================== HOTEL FEEDBACK ====================
@@ -80,16 +168,11 @@ router.get('/hotel/:hotelId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+router.put('/hotel/:id', async (req, res) => {
+  updateFeedback(req, res, 'hotel');
+});
 router.put('/hotel/:id/reply', adminOnly, async (req, res) => {
-  const updated = await prisma.hotelFeedback.update({
-    where: { id: req.params.id },
-    data: { reply: req.body.reply, repliedAt: new Date() }
-  });
-  await logAudit(req, 'FEEDBACK_REPLIED', 'HotelFeedback', updated.id, {
-    description: 'Replied to hotel feedback',
-    feedbackType: 'hotel',
-  });
-  res.json(updated);
+  updateReply(req, res, 'hotel');
 });
 
 // ==================== GUIDE FEEDBACK ====================
@@ -126,16 +209,11 @@ router.get('/guide/:guideId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+router.put('/guide/:id', async (req, res) => {
+  updateFeedback(req, res, 'guide');
+});
 router.put('/guide/:id/reply', adminOnly, async (req, res) => {
-  const updated = await prisma.guideFeedback.update({
-    where: { id: req.params.id },
-    data: { reply: req.body.reply, repliedAt: new Date() }
-  });
-  await logAudit(req, 'FEEDBACK_REPLIED', 'GuideFeedback', updated.id, {
-    description: 'Replied to guide feedback',
-    feedbackType: 'guide',
-  });
-  res.json(updated);
+  updateReply(req, res, 'guide');
 });
 
 // ==================== VEHICLE FEEDBACK ====================
@@ -172,16 +250,11 @@ router.get('/vehicle/:vehicleId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+router.put('/vehicle/:id', async (req, res) => {
+  updateFeedback(req, res, 'vehicle');
+});
 router.put('/vehicle/:id/reply', adminOnly, async (req, res) => {
-  const updated = await prisma.vehicleFeedback.update({
-    where: { id: req.params.id },
-    data: { reply: req.body.reply, repliedAt: new Date() }
-  });
-  await logAudit(req, 'FEEDBACK_REPLIED', 'VehicleFeedback', updated.id, {
-    description: 'Replied to vehicle feedback',
-    feedbackType: 'vehicle',
-  });
-  res.json(updated);
+  updateReply(req, res, 'vehicle');
 });
 
 // ==================== TOUR PACKAGE FEEDBACK ====================
@@ -218,16 +291,11 @@ router.get('/tour/:tourId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+router.put('/tour/:id', async (req, res) => {
+  updateFeedback(req, res, 'tour');
+});
 router.put('/tour/:id/reply', adminOnly, async (req, res) => {
-  const updated = await prisma.tourFeedback.update({
-    where: { id: req.params.id },
-    data: { reply: req.body.reply, repliedAt: new Date() }
-  });
-  await logAudit(req, 'FEEDBACK_REPLIED', 'TourFeedback', updated.id, {
-    description: 'Replied to tour package feedback',
-    feedbackType: 'tour',
-  });
-  res.json(updated);
+  updateReply(req, res, 'tour');
 });
 
 // ==================== CUSTOMER: GET MY ALL FEEDBACKS ====================
