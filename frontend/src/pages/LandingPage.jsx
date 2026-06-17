@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Star, MapPin, Car, Users, Compass, Award, Clock, Shield, Hotel, ArrowRight } from 'lucide-react';
+import { Search, Star, MapPin, Compass, Award, Shield, Hotel, ArrowRight, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
 import home1 from '../images/home1.jpeg';

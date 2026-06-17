@@ -112,10 +112,10 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
       return;
     }
 
-    // 2. At least 24 hours before start date
+    // 2. At least 48 hours before start date
     const hoursDiff = (start - now) / (1000 * 60 * 60);
-    if (hoursDiff < 24) {
-      toast.error('Bookings must be made at least 24 hours before the tour start date');
+    if (hoursDiff < 48) {
+      toast.error('Bookings must be made at least 48 hours before the tour start date');
       return;
     }
 

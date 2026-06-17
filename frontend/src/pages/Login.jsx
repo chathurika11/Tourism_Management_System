@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import API from '../services/api';
 import { LogIn, AtSign, Lock } from 'lucide-react';
 import loginBg from '../images/login.jpeg';
 import toast from 'react-hot-toast';
@@ -22,10 +23,43 @@ const Login = () => {
     const loggedInUser = await login(username, password);
     setLoading(false);
     if (loggedInUser) {
+      // Resume pending bookings
+      const pendingBooking = sessionStorage.getItem('pendingBooking');
+      const pendingCustom = sessionStorage.getItem('pendingCustomBooking');
+      const intended = sessionStorage.getItem('intendedBooking');
       if (loggedInUser.mustChangePassword) {
         navigate('/change-password');
       } else if (loggedInUser.role === 'admin' || loggedInUser.role === 'staff') {
         navigate('/admin/dashboard');
+      } else if (pendingBooking) {
+        navigate('/payment');
+      } else if (pendingCustom) {
+        navigate('/plan-tour');
+      } else if (intended) {
+        try {
+          const obj = JSON.parse(intended);
+          const start = new Date(obj.startDate);
+          const end = new Date(obj.endDate);
+          const numberOfDays = Math.ceil((end - start) / (1000*60*60*24));
+          const payload = {
+            type: 'Tour Package',
+            packageName: obj.packageName,
+            startDate: obj.startDate,
+            endDate: obj.endDate,
+            numberOfDays: numberOfDays || 1,
+            passengers: parseInt(obj.passengers) || 1,
+            totalAmount: parseFloat((obj.price || 0) * (obj.passengers || 1)),
+            status: 'pending',
+            paymentStatus: 'unpaid'
+          };
+          const res = await API.post('/bookings', payload);
+          sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
+          sessionStorage.removeItem('intendedBooking');
+          navigate('/payment');
+        } catch (e) {
+          console.error('Resume intended booking failed', e);
+          navigate('/customer/dashboard');
+        }
       } else {
         navigate('/customer/dashboard');
       }
@@ -81,9 +115,6 @@ const Login = () => {
             <LogIn size={20} /> {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        
-        {/* Demo admin hint removed */}
-        
         <p className="text-center mt-6 text-gray-600">
           Don't have a customer account?{' '}
           <Link to="/register" className="text-secondary font-semibold hover:underline">Register here</Link>

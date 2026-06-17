@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, DollarSign, Lock, Calendar, User, Shield, CheckCircle } from 'lucide-react';
+import { CreditCard, DollarSign, Lock, Calendar, Shield, CheckCircle, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 const Payment = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');

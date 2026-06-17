@@ -3,13 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TourProvider } from './context/TourContext';
-
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PrivateRoute from './components/PrivateRoute';
-
-// Remove the regular import of AdminDistricts – keep only the lazy one below
-// import AdminDistricts from './pages/Admin/AdminDistricts';   // DELETE THIS LINE
 
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center h-64">
@@ -17,28 +13,21 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Redirect admin users away from public pages
 const AdminRedirect = ({ children }) => {
   const { user } = useAuth();
-  if (user?.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
-  if (user?.role === 'staff') {
+  if (user?.role === 'admin' || user?.role === 'staff') {
     return <Navigate to="/admin/dashboard" replace />;
   }
   return children;
 };
 
-// Scroll to top on every route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 };
 
-// Lazy imports
+// Lazy imports (unchanged)
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Login = lazy(() => import('./pages/Login'));
@@ -64,17 +53,16 @@ const AdminGuides = lazy(() => import('./pages/Admin/AdminGuides'));
 const AdminBookings = lazy(() => import('./pages/Admin/AdminBookings'));
 const ReportsAnalytics = lazy(() => import('./pages/Admin/ReportsAnalytics'));
 const AdminUsers = lazy(() => import('./pages/Admin/AdminUsers'));
-const CompanyCommission = lazy(() => import('./pages/Admin/CompanyCommission'));
 const AdminFeedbacks = lazy(() => import('./pages/Admin/AdminFeedbacks'));
-const MyReviews = lazy(() => import('./pages/MyReviews'));
 const AdminTourPackages = lazy(() => import('./pages/Admin/AdminTourPackages'));
-const AdminDistricts = lazy(() => import('./pages/Admin/AdminDistricts'));   // Keep only this line
+const AdminDistricts = lazy(() => import('./pages/Admin/AdminDistricts'));
 const AccessDenied = lazy(() => import('./pages/AccessDenied'));
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const AuditLogs = lazy(() => import('./pages/Admin/AuditLogs'));
 const CustomersManagement = lazy(() => import('./pages/CustomersManagement'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const MyReviews = lazy(() => import('./pages/MyReviews'));
 
 function App() {
   return (
@@ -114,7 +102,6 @@ function App() {
                   <Route path="/staff/bookings" element={<PrivateRoute roles={['staff', 'admin']}><AdminBookings /></PrivateRoute>} />
                   <Route path="/staff/support" element={<PrivateRoute roles={['staff', 'admin']}><AdminFeedbacks /></PrivateRoute>} />
                   <Route path="/customers" element={<PrivateRoute roles={['staff', 'admin']}><CustomersManagement /></PrivateRoute>} />
-
                   {/* Admin routes */}
                   <Route path="/admin" element={<PrivateRoute roles={['admin', 'staff']}><AdminDashboard /></PrivateRoute>}>
                     <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -124,7 +111,6 @@ function App() {
                     <Route path="guides" element={<AdminGuides />} />
                     <Route path="bookings" element={<AdminBookings />} />
                     <Route path="reports" element={<PrivateRoute roles={['admin']}><ReportsAnalytics /></PrivateRoute>} />
-                    <Route path="company-commission" element={<PrivateRoute roles={['admin']}><CompanyCommission /></PrivateRoute>} />
                     <Route path="feedbacks" element={<AdminFeedbacks />} />
                     <Route path="users" element={<PrivateRoute roles={['admin']}><AdminUsers /></PrivateRoute>} />
                     <Route path="logs" element={<PrivateRoute roles={['admin']}><AuditLogs /></PrivateRoute>} />
@@ -134,13 +120,24 @@ function App() {
                 </Routes>
               </Suspense>
             </main>
-            <Footer />
+            {/* 👇 Only render Footer if NOT on admin route */}
+            <FooterWrapper />
             <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
           </div>
         </TourProvider>
       </AuthProvider>
     </Router>
   );
+}
+
+// Custom wrapper to conditionally render footer
+function FooterWrapper() {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/staff');
+  // Also hide on login/register pages to keep clean
+  const isAuthRoute = ['/login', '/register', '/forgot-password'].includes(location.pathname);
+  if (isAdminRoute || isAuthRoute) return null;
+  return <Footer />;
 }
 
 export default App;

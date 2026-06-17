@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Heart, Users, Globe, Home, Map, Calendar, MapPin, Utensils, Award, Clock, Shield } from 'lucide-react';
+import { Compass, Heart, Globe, Home, Map, Calendar, MapPin, Utensils, Award, Users } from 'lucide-react';
 import aboutus1 from '../images/aboutus1.jpg';
 import aboutus2 from '../images/aboutus2.jpg';
 import aboutus3 from '../images/aboutus3.jpg';

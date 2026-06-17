@@ -154,13 +154,6 @@ const AdminTourPackages = () => {
     }
   };
 
-  const togglePlace = (destId, placeId) => {
-    const dest = formData.destinations.find(d => d.id === destId);
-    if (!dest) return;
-    const newPlaces = dest.places.includes(placeId) ? dest.places.filter(p => p !== placeId) : [...dest.places, placeId];
-    updateDestination(destId, 'places', newPlaces);
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData();

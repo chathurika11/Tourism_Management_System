@@ -99,6 +99,9 @@ model Booking {
   cardType      String?
   paymentMethod String?
   transactionId String?
+  isRead        Boolean  @default(false)
+  cancellationMessage String?
+  destinations  Json?
 
   @@index([userId])
   @@index([status])

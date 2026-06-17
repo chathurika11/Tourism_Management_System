@@ -94,6 +94,16 @@ const CustomBooking = () => {
     return date.toISOString().split('T')[0];
   };
 
+  // Persist progress for unauthenticated users
+  useEffect(() => {
+    const savePending = () => {
+      const payload = { destinations, startDate, endDate, passengers };
+      sessionStorage.setItem('pendingCustomBooking', JSON.stringify(payload));
+    };
+    const id = setInterval(savePending, 3000);
+    return () => clearInterval(id);
+  }, [destinations, startDate, endDate, passengers]);
+
   useEffect(() => {
     const fetchDistricts = async () => {
       setLoadingDistricts(true);
@@ -108,6 +118,19 @@ const CustomBooking = () => {
       }
     };
     fetchDistricts();
+    // hydrate from pending custom booking if present
+    const pending = sessionStorage.getItem('pendingCustomBooking');
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        if (parsed.startDate) setStartDate(parsed.startDate);
+        if (parsed.endDate) setEndDate(parsed.endDate);
+        if (parsed.passengers) setPassengers(parsed.passengers);
+        if (parsed.destinations) setDestinations(parsed.destinations);
+        // remove to avoid duplicate
+        sessionStorage.removeItem('pendingCustomBooking');
+      } catch (e) { console.warn('Invalid pendingCustomBooking', e); }
+    }
   }, []);
 
   const fetchItemsForDistrict = async (districtId, districtName) => {
@@ -131,7 +154,7 @@ const CustomBooking = () => {
     }
   };
 
-  // ✅ Night calculation: first 48h = 1 night, each additional 24h adds 1 night
+  // Night calculation: first 48h = 1 night, each additional 24h adds 1 night
   const numberOfNights = useMemo(() => {
     if (!startDate || !endDate) return 0;
     const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
@@ -204,7 +227,6 @@ const CustomBooking = () => {
 
   const validateStep2 = () => {
     if (!startDate || !endDate) { toast.error('Please select both start and end dates'); return false; }
-    const now = new Date();
     const minStartDate = new Date();
     minStartDate.setHours(minStartDate.getHours() + 48);
     const start = new Date(startDate);
@@ -293,7 +315,7 @@ const CustomBooking = () => {
     });
   };
 
-  // ---------- Step 1 – Select Destinations (removed “Need a Vehicle”) ----------
+  // ---------- Step 1 – Select Destinations ----------
   const renderStep1 = () => {
     if (loadingDistricts) return <div className="text-center py-8">Loading destinations...</div>;
     if (districts.length === 0) {
@@ -383,7 +405,6 @@ const CustomBooking = () => {
                       </select>
                     </>
                   )}
-                  {/* “Need a Vehicle” checkbox removed from Step 1 */}
                 </div>
               </>
             )}
@@ -427,7 +448,7 @@ const CustomBooking = () => {
     </div>
   );
 
-  // ---------- Step 4 – Vehicles (remains unchanged) ----------
+  // ---------- Step 4 – Vehicles ----------
   const renderStep4 = () => (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-primary">Select Vehicles (if needed)</h2>
@@ -483,13 +504,12 @@ const CustomBooking = () => {
     </div>
   );
 
-  // ---------- Step 6 – Route Maps (handles missing coordinates) ----------
+  // ---------- Step 6 – Route Maps ----------
   const renderStep6 = () => {
     const allMaps = destinations.map((dest, idx) => {
       const districtObj = districts.find(d => d.id === dest.districtId);
       if (!districtObj) return null;
       const startPoint = getCoordinates(districtObj);
-      // If the district has no coordinates, show a message and skip map
       if (!startPoint) {
         return (
           <div key={dest.id} className="border rounded-lg p-4 bg-yellow-50">
@@ -498,7 +518,6 @@ const CustomBooking = () => {
           </div>
         );
       }
-      // Only use places that have coordinates
       const selectedPlaces = dest.places
         .map(pid => districtObj.places.find(p => p.id === pid))
         .filter(p => p && getCoordinates(p));

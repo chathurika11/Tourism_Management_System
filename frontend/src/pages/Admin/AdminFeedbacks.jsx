@@ -145,12 +145,16 @@ const AdminFeedbacks = () => {
                         <p className="text-xs text-gray-400">{new Date(fb.repliedAt).toLocaleString()}</p>
                         <div className="flex items-center gap-3">
                           {replyEditable && (
-                            <button onClick={() => { setReplyingTo(fb.id); setReplyText(fb.reply); }} className="text-blue-600 flex items-center gap-1 text-sm font-medium hover:underline">
-                              <Edit2 size={14} /> Edit Reply
+                            <button onClick={() => { setReplyingTo(fb.id); setReplyText(fb.reply); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-medium transition">
+                              <Edit2 size={13} /> Edit Reply
                             </button>
                           )}
-                          <button onClick={() => toggleReadMutation.mutate({ id: fb.id, isRead: !fb.isRead })} className="text-gray-500 hover:text-primary flex items-center gap-1 text-sm font-medium">
-                            {fb.isRead ? 'Mark Unread' : 'Mark Read'}
+                          <button onClick={() => toggleReadMutation.mutate({ id: fb.id, isRead: !fb.isRead })} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition ${
+                            fb.isRead
+                              ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                          }`}>
+                            {fb.isRead ? '✉ Mark Unread' : '✓ Mark Read'}
                           </button>
                         </div>
                       </div>
@@ -168,10 +172,16 @@ const AdminFeedbacks = () => {
                       <button onClick={() => setReplyingTo(null)} className="btn-outline px-4"><X size={16} /></button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-4">
-                      <button onClick={() => { setReplyingTo(fb.id); setReplyText(''); }} className="text-blue-600 flex items-center gap-1 text-sm font-medium hover:underline"><Reply size={14} /> Reply</button>
-                      <button onClick={() => toggleReadMutation.mutate({ id: fb.id, isRead: !fb.isRead })} className="text-gray-500 hover:text-primary flex items-center gap-1 text-sm font-medium">
-                        {fb.isRead ? 'Mark Unread' : 'Mark Read'}
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => { setReplyingTo(fb.id); setReplyText(''); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-white hover:bg-secondary font-medium transition shadow-sm">
+                        <Reply size={13} /> Reply
+                      </button>
+                      <button onClick={() => toggleReadMutation.mutate({ id: fb.id, isRead: !fb.isRead })} className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition ${
+                        fb.isRead
+                          ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                      }`}>
+                        {fb.isRead ? '✉ Mark Unread' : '✓ Mark Read'}
                       </button>
                     </div>
                   )}

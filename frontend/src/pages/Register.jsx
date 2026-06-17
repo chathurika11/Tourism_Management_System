@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import API from '../services/api';
 import { UserPlus, User, Mail, Lock, Phone, Home, Globe, AtSign, UserCircle, IdCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import registerImage from '../images/register.jpeg';
@@ -102,17 +103,16 @@ const Register = () => {
     const currentPhone = phone.replace(/^\+?\d*/, '');
     setPhone(code + currentPhone);
     
-    // If country is not Sri Lanka, force idType to passport
+    // Non-Sri Lanka countries can only have Passport (NIC is SL-specific)
     if (country && country !== 'Sri Lanka') {
       setIdType('passport');
-      if (idNumber) {
-        validateIdNumber(idNumber, 'passport', country);
-      }
     } else {
-      if (idNumber) {
-        validateIdNumber(idNumber, idType, country);
-      }
+      // For Sri Lanka, default to NIC
+      setIdType('nic');
     }
+    // Clear and re-validate id on country change
+    setIdNumber('');
+    setIdError('');
   };
 
   const handlePhoneChange = (e) => {
@@ -197,9 +197,45 @@ const Register = () => {
     };
     const success = await register(userData);
     setLoading(false);
-    if (success) {
-      navigate('/');
-    }
+      if (success) {
+        // After registration, resume any pending bookings
+        const pendingBooking = sessionStorage.getItem('pendingBooking');
+        const pendingCustom = sessionStorage.getItem('pendingCustomBooking');
+        const intended = sessionStorage.getItem('intendedBooking');
+        if (pendingBooking) {
+          navigate('/payment');
+          return;
+        }
+        if (pendingCustom) {
+          navigate('/plan-tour');
+          return;
+        }
+        if (intended) {
+          try {
+            const obj = JSON.parse(intended);
+            const start = new Date(obj.startDate);
+            const end = new Date(obj.endDate);
+            const numberOfDays = Math.ceil((end - start) / (1000*60*60*24));
+            const payload = {
+              type: 'Tour Package',
+              packageName: obj.packageName,
+              startDate: obj.startDate,
+              endDate: obj.endDate,
+              numberOfDays: numberOfDays || 1,
+              passengers: parseInt(obj.passengers) || 1,
+              totalAmount: parseFloat((obj.price || 0) * (obj.passengers || 1)),
+              status: 'pending',
+              paymentStatus: 'unpaid'
+            };
+            const res = await API.post('/bookings', payload);
+            sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
+            sessionStorage.removeItem('intendedBooking');
+            navigate('/payment');
+            return;
+          } catch (e) { console.error('Resume intended booking after register failed', e); }
+        }
+        navigate('/');
+      }
   };
 
   return (
@@ -265,10 +301,33 @@ const Register = () => {
               <input type="text" value={idNumber} onChange={handleIdChange} className="input-field pl-10" placeholder="Enter NIC or Passport" required />
             </div>
             {idError && <p className="text-red-500 text-xs mt-1">{idError}</p>}
-            {selectedCountry === 'Sri Lanka' && (
+            {/* ID Type Toggle — show for all countries once selected */}
+            {selectedCountry && (
               <div className="flex gap-2 mt-2">
-                <button type="button" onClick={() => handleIdTypeChange('nic')} className={`text-xs px-2 py-1 rounded ${idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
-                <button type="button" onClick={() => handleIdTypeChange('passport')} className={`text-xs px-2 py-1 rounded ${idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+                {selectedCountry === 'Sri Lanka' && (
+                  <button
+                    type="button"
+                    onClick={() => handleIdTypeChange('nic')}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition ${
+                      idType === 'nic'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                    }`}
+                  >
+                    🪪 NIC
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleIdTypeChange('passport')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition ${
+                    idType === 'passport'
+                      ? 'bg-primary text-white border-primary shadow-sm'
+                      : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                  }`}
+                >
+                  📘 Passport
+                </button>
               </div>
             )}
           </div>
