@@ -311,7 +311,7 @@ router.get('/users', authenticateUser, authorizeRoles('ADMIN'), async (req, res)
 router.put('/users/:id', authenticateUser, authorizeRoles('ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, username, email, phone, address, country, status, role, password } = req.body;
+    const { name, username, email, phone, address, country, status, role, password, idNumber, idType } = req.body;
     
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -328,7 +328,7 @@ router.put('/users/:id', authenticateUser, authorizeRoles('ADMIN'), async (req, 
       return res.status(400).json({ error: 'Invalid role selected' });
     }
 
-    const data = { name, username, email, phone, address, country };
+    const data = { name, username, email, phone, address, country, idNumber: idNumber || null, idType: idType || null };
     if (status) data.status = status;
     if (password) {
       const hashed = await bcrypt.hash(password, 10);

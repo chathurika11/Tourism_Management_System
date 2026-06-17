@@ -196,6 +196,7 @@ model VehicleFeedback {
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([vehicleId])
@@ -212,6 +213,7 @@ model GuideFeedback {
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([guideId])
@@ -228,6 +230,7 @@ model HotelFeedback {
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([hotelId])
@@ -244,6 +247,7 @@ model TourFeedback {
   comment   String
   reply     String?  // admin reply
   repliedAt DateTime?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([tourId])

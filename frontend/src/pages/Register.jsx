@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { UserPlus, User, Mail, Lock, Phone, Home, Globe, AtSign, UserCircle, IdCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import registerImage from '../images/register.jpeg';
+import { validateSriLankanNIC, validatePhoneNumber, validatePassportNumber } from '../utils/validation';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -47,33 +48,18 @@ const Register = () => {
     'UAE': '+971',
   };
 
-  const validateSriLankanNIC = (nic) => {
-    nic = nic.toUpperCase().trim();
-    const oldFormat = /^[1-9][0-9]{8}[Vv]$/;
-    const newFormat = /^[1-9][0-9]{11}$/;
-    if (oldFormat.test(nic)) return { valid: true, type: 'old', message: 'Valid NIC (Old format)' };
-    if (newFormat.test(nic)) return { valid: true, type: 'new', message: 'Valid NIC (New format)' };
-    return { valid: false, message: 'Invalid NIC: 9 digits + V or 12 digits, cannot start with 0' };
-  };
-
-  const validatePassport = (passport) => {
-    passport = passport.trim().toUpperCase();
-    const passportRegex = /^[A-Z0-9]{6,12}$/;
-    if (passportRegex.test(passport)) return { valid: true, message: 'Valid Passport Number' };
-    return { valid: false, message: 'Invalid Passport: 6-12 characters, letters and numbers only' };
-  };
-
-  const validateIdNumber = (id, type) => {
+  const validateIdNumber = (id, type, country) => {
     if (!id) {
       setIdError('ID Number is required');
       return false;
     }
+    const targetCountry = country || selectedCountry;
     if (type === 'nic') {
       const result = validateSriLankanNIC(id);
       setIdError(result.valid ? '' : result.message);
       return result.valid;
     } else {
-      const result = validatePassport(id);
+      const result = validatePassportNumber(id, targetCountry);
       setIdError(result.valid ? '' : result.message);
       return result.valid;
     }
@@ -115,6 +101,18 @@ const Register = () => {
     setCountryCode(code);
     const currentPhone = phone.replace(/^\+?\d*/, '');
     setPhone(code + currentPhone);
+    
+    // If country is not Sri Lanka, force idType to passport
+    if (country && country !== 'Sri Lanka') {
+      setIdType('passport');
+      if (idNumber) {
+        validateIdNumber(idNumber, 'passport', country);
+      }
+    } else {
+      if (idNumber) {
+        validateIdNumber(idNumber, idType, country);
+      }
+    }
   };
 
   const handlePhoneChange = (e) => {
@@ -140,13 +138,13 @@ const Register = () => {
   const handleIdChange = (e) => {
     const value = e.target.value;
     setIdNumber(value);
-    if (value) validateIdNumber(value, idType);
+    if (value) validateIdNumber(value, idType, selectedCountry);
     else setIdError('');
   };
 
   const handleIdTypeChange = (type) => {
     setIdType(type);
-    if (idNumber) validateIdNumber(idNumber, type);
+    if (idNumber) validateIdNumber(idNumber, type, selectedCountry);
   };
 
   const handleSubmit = async (e) => {
@@ -175,14 +173,14 @@ const Register = () => {
       toast.error('Please enter your NIC or Passport Number');
       return;
     }
-    const isValid = validateIdNumber(idNumber, idType);
+    const isValid = validateIdNumber(idNumber, idType, selectedCountry);
     if (!isValid) {
       toast.error(idError);
       return;
     }
-    const phoneDigits = phone.replace(/\D/g, '');
-    if (phoneDigits.length < 9) {
-      toast.error('Please enter a valid phone number (minimum 9 digits)');
+    const phoneValid = validatePhoneNumber(phone, selectedCountry, countryCode);
+    if (!phoneValid.valid) {
+      toast.error(phoneValid.message);
       return;
     }
     setLoading(true);
@@ -267,10 +265,12 @@ const Register = () => {
               <input type="text" value={idNumber} onChange={handleIdChange} className="input-field pl-10" placeholder="Enter NIC or Passport" required />
             </div>
             {idError && <p className="text-red-500 text-xs mt-1">{idError}</p>}
-            <div className="flex gap-2 mt-2">
-              <button type="button" onClick={() => handleIdTypeChange('nic')} className={`text-xs px-2 py-1 rounded ${idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
-              <button type="button" onClick={() => handleIdTypeChange('passport')} className={`text-xs px-2 py-1 rounded ${idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
-            </div>
+            {selectedCountry === 'Sri Lanka' && (
+              <div className="flex gap-2 mt-2">
+                <button type="button" onClick={() => handleIdTypeChange('nic')} className={`text-xs px-2 py-1 rounded ${idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
+                <button type="button" onClick={() => handleIdTypeChange('passport')} className={`text-xs px-2 py-1 rounded ${idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-gray-700 mb-1">Password *</label>

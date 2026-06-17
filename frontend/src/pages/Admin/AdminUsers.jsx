@@ -3,6 +3,30 @@ import { Users, Search, Eye, Shield, UserCheck, Edit2, Trash2, X, AlertCircle, U
 import toast from 'react-hot-toast';
 import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { validateSriLankanNIC, validatePhoneNumber, validatePassportNumber } from '../../utils/validation';
+
+const countryCodes = {
+  'Sri Lanka': '+94',
+  'India': '+91',
+  'USA': '+1',
+  'UK': '+44',
+  'Australia': '+61',
+  'Canada': '+1',
+  'Germany': '+49',
+  'France': '+33',
+  'Japan': '+81',
+  'China': '+86',
+  'Malaysia': '+60',
+  'Singapore': '+65',
+  'Thailand': '+66',
+  'Vietnam': '+84',
+  'Indonesia': '+62',
+  'Pakistan': '+92',
+  'Bangladesh': '+880',
+  'Nepal': '+977',
+  'Maldives': '+960',
+  'UAE': '+971',
+};
 
 const AdminUsers = () => {
   const getDefaultPassword = (role) => {
@@ -107,15 +131,32 @@ const AdminUsers = () => {
 
   const handleCreateRoleChange = (role) => {
     const defaultPassword = getDefaultPassword(role);
+    const isStaffOrAdmin = role === 'staff' || role === 'admin';
     setCreateData({
       ...createData,
       role,
       password: defaultPassword,
-      confirmPassword: defaultPassword
+      confirmPassword: defaultPassword,
+      country: isStaffOrAdmin ? 'Sri Lanka' : createData.country,
+      idType: isStaffOrAdmin ? 'nic' : createData.idType
+    });
+  };
+
+  const handleEditRoleChange = (role) => {
+    const isStaffOrAdmin = role === 'staff' || role === 'admin';
+    setEditData({
+      ...editData,
+      role,
+      country: isStaffOrAdmin ? 'Sri Lanka' : editData.country || 'Sri Lanka',
+      idType: isStaffOrAdmin ? 'nic' : editData.idType || 'passport'
     });
   };
 
   const handleCreateStaff = async () => {
+    if (!createData.name.trim() || !createData.username.trim()) {
+      toast.error('Name and Username are required');
+      return;
+    }
     if (createData.password.length < 6) {
       toast.error('Password must be at least 6 characters');
       return;
@@ -125,10 +166,49 @@ const AdminUsers = () => {
       return;
     }
 
+    const isStaffOrAdmin = createData.role === 'staff' || createData.role === 'admin';
+    const targetCountry = isStaffOrAdmin ? 'Sri Lanka' : createData.country;
+    const targetIdType = isStaffOrAdmin ? 'nic' : createData.idType;
+
+    // Validate ID
+    if (isStaffOrAdmin) {
+      const nicValid = validateSriLankanNIC(createData.idNumber);
+      if (!nicValid.valid) {
+        toast.error(nicValid.message);
+        return;
+      }
+    } else {
+      if (targetIdType === 'nic') {
+        const nicValid = validateSriLankanNIC(createData.idNumber);
+        if (!nicValid.valid) {
+          toast.error(nicValid.message);
+          return;
+        }
+      } else {
+        const passportValid = validatePassportNumber(createData.idNumber, targetCountry);
+        if (!passportValid.valid) {
+          toast.error(passportValid.message);
+          return;
+        }
+      }
+    }
+
+    // Validate Phone
+    if (createData.phone) {
+      const countryCode = countryCodes[targetCountry] || '';
+      const phoneValid = validatePhoneNumber(createData.phone, targetCountry, countryCode);
+      if (!phoneValid.valid) {
+        toast.error(phoneValid.message);
+        return;
+      }
+    }
+
     try {
       const { confirmPassword, ...payload } = createData;
       await API.post('/auth/users', {
         ...payload,
+        country: targetCountry,
+        idType: targetIdType,
         name: payload.name.trim(),
         username: payload.username.trim(),
         email: payload.email.trim() || null,
@@ -144,9 +224,63 @@ const AdminUsers = () => {
   };
 
   const handleUpdateUser = async () => {
+    if (!editData.name?.trim() || !editData.username?.trim()) {
+      toast.error('Name and Username are required');
+      return;
+    }
+
+    const isStaffOrAdmin = editData.role === 'staff' || editData.role === 'admin';
+    const targetCountry = isStaffOrAdmin ? 'Sri Lanka' : editData.country || 'Sri Lanka';
+    const targetIdType = isStaffOrAdmin ? 'nic' : editData.idType || 'passport';
+
+    // Validate ID
+    if (isStaffOrAdmin) {
+      const nicValid = validateSriLankanNIC(editData.idNumber);
+      if (!nicValid.valid) {
+        toast.error(nicValid.message);
+        return;
+      }
+    } else {
+      if (targetIdType === 'nic') {
+        const nicValid = validateSriLankanNIC(editData.idNumber);
+        if (!nicValid.valid) {
+          toast.error(nicValid.message);
+          return;
+        }
+      } else {
+        const passportValid = validatePassportNumber(editData.idNumber, targetCountry);
+        if (!passportValid.valid) {
+          toast.error(passportValid.message);
+          return;
+        }
+      }
+    }
+
+    // Validate Phone
+    if (editData.phone) {
+      const countryCode = countryCodes[targetCountry] || '';
+      const phoneValid = validatePhoneNumber(editData.phone, targetCountry, countryCode);
+      if (!phoneValid.valid) {
+        toast.error(phoneValid.message);
+        return;
+      }
+    }
+
     try {
-      const { id, name, username, email, phone, address, country, status, role, password } = editData;
-      await API.put(`/auth/users/${id}`, { name, username, email, phone, address, country, status, role, password: password || undefined });
+      const { id, name, username, email, phone, address, status, role, password, idNumber } = editData;
+      await API.put(`/auth/users/${id}`, {
+        name,
+        username,
+        email,
+        phone,
+        address,
+        country: targetCountry,
+        idType: targetIdType,
+        idNumber: idNumber?.toUpperCase() || null,
+        status,
+        role,
+        password: password || undefined
+      });
       toast.success('User updated successfully');
       setShowEditModal(false);
       fetchUsers();
@@ -351,37 +485,98 @@ const AdminUsers = () => {
               <h2 className="text-xl font-bold text-primary">Add Admin, Staff, or Customer</h2>
               <button onClick={() => setShowCreateModal(false)}><X size={24} /></button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleCreateStaff(); }} className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input type="text" placeholder="Full Name *" value={createData.name} onChange={(e) => setCreateData({...createData, name: e.target.value})} className="input-field" required />
-              <input type="text" placeholder="Username *" value={createData.username} onChange={(e) => setCreateData({...createData, username: e.target.value})} className="input-field" required />
-              <input type="email" placeholder="Email" value={createData.email} onChange={(e) => setCreateData({...createData, email: e.target.value})} className="input-field" />
-              <input type="tel" placeholder="Phone" value={createData.phone} onChange={(e) => setCreateData({...createData, phone: e.target.value})} className="input-field" />
-              <input type="text" placeholder="Address" value={createData.address} onChange={(e) => setCreateData({...createData, address: e.target.value})} className="input-field" />
-              <input type="text" placeholder="Country" value={createData.country} onChange={(e) => setCreateData({...createData, country: e.target.value})} className="input-field" />
-              <div>
-                <input type="text" placeholder="NIC / ID Number" value={createData.idNumber} onChange={(e) => setCreateData({...createData, idNumber: e.target.value})} className="input-field" />
-                <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={() => setCreateData({...createData, idType: 'nic'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
-                  <button type="button" onClick={() => setCreateData({...createData, idType: 'passport'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateStaff(); }} className="p-6 space-y-4">
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Role:</label>
+                <select value={createData.role} onChange={(e) => handleCreateRoleChange(e.target.value)} className="input-field col-span-2">
+                  <option value="admin">Admin</option>
+                  <option value="staff">Staff Member</option>
+                  <option value="user">Customer</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Full Name *:</label>
+                <input type="text" value={createData.name} onChange={(e) => setCreateData({...createData, name: e.target.value})} className="input-field col-span-2" required />
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Username *:</label>
+                <input type="text" value={createData.username} onChange={(e) => setCreateData({...createData, username: e.target.value})} className="input-field col-span-2" required />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Email:</label>
+                <input type="email" value={createData.email} onChange={(e) => setCreateData({...createData, email: e.target.value})} className="input-field col-span-2" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Phone:</label>
+                <input type="tel" value={createData.phone} onChange={(e) => setCreateData({...createData, phone: e.target.value})} className="input-field col-span-2" placeholder={countryCodes[createData.country] ? `e.g. ${countryCodes[createData.country]}xxxxxxxxx` : ""} />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Address:</label>
+                <input type="text" value={createData.address} onChange={(e) => setCreateData({...createData, address: e.target.value})} className="input-field col-span-2" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Country:</label>
+                {createData.role === 'staff' || createData.role === 'admin' ? (
+                  <input type="text" value="Sri Lanka" className="input-field col-span-2 bg-gray-100 cursor-not-allowed" disabled />
+                ) : (
+                  <select value={createData.country} onChange={(e) => {
+                    const country = e.target.value;
+                    const isSriLanka = country === 'Sri Lanka';
+                    setCreateData({
+                      ...createData,
+                      country,
+                      idType: isSriLanka ? createData.idType : 'passport'
+                    });
+                  }} className="input-field col-span-2">
+                    {Object.keys(countryCodes).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-start">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2 pt-2">ID Number *:</label>
+                <div className="col-span-2 space-y-2">
+                  <input type="text" value={createData.idNumber} onChange={(e) => setCreateData({...createData, idNumber: e.target.value})} className="input-field w-full" placeholder={createData.idType === 'nic' ? 'Sri Lankan NIC (e.g. 981234567V)' : 'Passport Number'} required />
+                  {createData.role !== 'staff' && createData.role !== 'admin' && createData.country === 'Sri Lanka' && (
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setCreateData({...createData, idType: 'nic'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
+                      <button type="button" onClick={() => setCreateData({...createData, idType: 'passport'})} className={`text-xs px-2 py-1 rounded ${createData.idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <select value={createData.role} onChange={(e) => handleCreateRoleChange(e.target.value)} className="input-field">
-                <option value="admin">Admin</option>
-                <option value="staff">Staff Member</option>
-                <option value="user">Customer</option>
-              </select>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Status:</label>
+                <select value={createData.status} onChange={(e) => setCreateData({...createData, status: e.target.value})} className="input-field col-span-2">
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Password *:</label>
+                <input type="password" value={createData.password} onChange={(e) => setCreateData({...createData, password: e.target.value})} className="input-field col-span-2" required />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Confirm Password *:</label>
+                <input type="password" value={createData.confirmPassword} onChange={(e) => setCreateData({...createData, confirmPassword: e.target.value})} className="input-field col-span-2" required />
+              </div>
+
               {(createData.role === 'staff' || createData.role === 'admin') && (
-                <p className="md:col-span-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
+                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2 text-center">
                   Default password is {getDefaultPassword(createData.role)}. Staff must set a new password on first login.
                 </p>
               )}
-              <select value={createData.status} onChange={(e) => setCreateData({...createData, status: e.target.value})} className="input-field">
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-              </select>
-              <input type="password" placeholder="Password *" value={createData.password} onChange={(e) => setCreateData({...createData, password: e.target.value})} className="input-field" required />
-              <input type="password" placeholder="Confirm Password *" value={createData.confirmPassword} onChange={(e) => setCreateData({...createData, confirmPassword: e.target.value})} className="input-field" required />
-              <div className="flex gap-3 pt-2 md:col-span-2">
+
+              <div className="flex gap-3 pt-4 border-t">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-outline flex-1">Cancel</button>
                 <button type="submit" className="btn-primary flex-1">Create User</button>
               </div>
@@ -405,6 +600,8 @@ const AdminUsers = () => {
               <p><strong>Phone:</strong> {selectedUser.phone || '—'}</p>
               <p><strong>Address:</strong> {selectedUser.address || '—'}</p>
               <p><strong>Country:</strong> {selectedUser.country || '—'}</p>
+              <p><strong>ID Type:</strong> {selectedUser.idType ? selectedUser.idType.toUpperCase() : '—'}</p>
+              <p><strong>ID Number:</strong> {selectedUser.idNumber || '—'}</p>
               <p><strong>Role:</strong> {selectedUser.role}</p>
               <p><strong>Registered:</strong> {new Date(selectedUser.createdAt).toLocaleString()}</p>
             </div>
@@ -418,31 +615,94 @@ const AdminUsers = () => {
       {/* Edit Modal */}
       {showEditModal && editData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-xl font-bold text-primary">
                 {editData.role === 'admin' ? 'Edit Admin' : editData.role === 'staff' ? 'Edit Staff Member' : 'Edit Customer'}
               </h2>
               <button onClick={() => setShowEditModal(false)}><X size={24} /></button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleUpdateUser(); }} className="p-4 space-y-3">
-              <input type="text" placeholder="Full Name *" value={editData.name || ''} onChange={(e) => setEditData({...editData, name: e.target.value})} className="input-field" required />
-              <input type="text" placeholder="Username *" value={editData.username || ''} onChange={(e) => setEditData({...editData, username: e.target.value})} className="input-field" required />
-              <input type="email" placeholder="Email" value={editData.email || ''} onChange={(e) => setEditData({...editData, email: e.target.value})} className="input-field" />
-              <input type="tel" placeholder="Phone" value={editData.phone || ''} onChange={(e) => setEditData({...editData, phone: e.target.value})} className="input-field" />
-              <input type="text" placeholder="Address" value={editData.address || ''} onChange={(e) => setEditData({...editData, address: e.target.value})} className="input-field" />
-              <input type="text" placeholder="Country" value={editData.country || ''} onChange={(e) => setEditData({...editData, country: e.target.value})} className="input-field" />
-              <select value={editData.role || 'user'} onChange={(e) => setEditData({...editData, role: e.target.value})} className="input-field">
-                <option value="admin">Admin</option>
-                <option value="staff">Staff Member</option>
-                <option value="user">Customer</option>
-              </select>
-              <select value={editData.status || 'ACTIVE'} onChange={(e) => setEditData({...editData, status: e.target.value})} className="input-field">
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-              </select>
-              <input type="password" placeholder="Reset Password (optional)" value={editData.password || ''} onChange={(e) => setEditData({...editData, password: e.target.value})} className="input-field" />
-              <div className="flex gap-3 pt-2">
+            <form onSubmit={(e) => { e.preventDefault(); handleUpdateUser(); }} className="p-6 space-y-4">
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Role:</label>
+                <select value={editData.role || 'user'} onChange={(e) => handleEditRoleChange(e.target.value)} className="input-field col-span-2">
+                  <option value="admin">Admin</option>
+                  <option value="staff">Staff Member</option>
+                  <option value="user">Customer</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Full Name *:</label>
+                <input type="text" value={editData.name || ''} onChange={(e) => setEditData({...editData, name: e.target.value})} className="input-field col-span-2" required />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Username *:</label>
+                <input type="text" value={editData.username || ''} onChange={(e) => setEditData({...editData, username: e.target.value})} className="input-field col-span-2" required />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Email:</label>
+                <input type="email" value={editData.email || ''} onChange={(e) => setEditData({...editData, email: e.target.value})} className="input-field col-span-2" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Phone:</label>
+                <input type="tel" value={editData.phone || ''} onChange={(e) => setEditData({...editData, phone: e.target.value})} className="input-field col-span-2" placeholder={countryCodes[editData.country] ? `e.g. ${countryCodes[editData.country]}xxxxxxxxx` : ""} />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Address:</label>
+                <input type="text" value={editData.address || ''} onChange={(e) => setEditData({...editData, address: e.target.value})} className="input-field col-span-2" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Country:</label>
+                {editData.role === 'staff' || editData.role === 'admin' ? (
+                  <input type="text" value="Sri Lanka" className="input-field col-span-2 bg-gray-100 cursor-not-allowed" disabled />
+                ) : (
+                  <select value={editData.country || 'Sri Lanka'} onChange={(e) => {
+                    const country = e.target.value;
+                    const isSriLanka = country === 'Sri Lanka';
+                    setEditData({
+                      ...editData,
+                      country,
+                      idType: isSriLanka ? (editData.idType || 'nic') : 'passport'
+                    });
+                  }} className="input-field col-span-2">
+                    {Object.keys(countryCodes).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-start">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2 pt-2">ID Number *:</label>
+                <div className="col-span-2 space-y-2">
+                  <input type="text" value={editData.idNumber || ''} onChange={(e) => setEditData({...editData, idNumber: e.target.value})} className="input-field w-full" placeholder={editData.idType === 'nic' ? 'Sri Lankan NIC (e.g. 981234567V)' : 'Passport Number'} required />
+                  {editData.role !== 'staff' && editData.role !== 'admin' && editData.country === 'Sri Lanka' && (
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setEditData({...editData, idType: 'nic'})} className={`text-xs px-2 py-1 rounded ${(editData.idType || 'nic') === 'nic' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>NIC</button>
+                      <button type="button" onClick={() => setEditData({...editData, idType: 'passport'})} className={`text-xs px-2 py-1 rounded ${editData.idType === 'passport' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}>Passport</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Status:</label>
+                <select value={editData.status || 'ACTIVE'} onChange={(e) => setEditData({...editData, status: e.target.value})} className="input-field col-span-2">
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-semibold text-gray-700 text-right pr-2">Reset Password:</label>
+                <input type="password" placeholder="Reset Password (optional)" value={editData.password || ''} onChange={(e) => setEditData({...editData, password: e.target.value})} className="input-field col-span-2" />
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t">
                 <button type="button" onClick={() => setShowEditModal(false)} className="btn-outline flex-1">Cancel</button>
                 <button type="submit" className="btn-primary flex-1">Update</button>
               </div>

@@ -82,7 +82,7 @@ const updateReply = async (req, res, type) => {
 
     const updated = await prisma[config.model].update({
       where: { id: req.params.id },
-      data: { reply, repliedAt: existing.repliedAt || new Date() }
+      data: { reply, repliedAt: existing.repliedAt || new Date(), isRead: true }
     });
     await logAudit(req, 'FEEDBACK_REPLIED', `${type[0].toUpperCase()}${type.slice(1)}Feedback`, updated.id, {
       description: `${existing.reply ? 'Edited reply for' : 'Replied to'} ${type} feedback`,
@@ -324,6 +324,24 @@ router.get('/my-feedbacks', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     res.json({ hotelFeedbacks, guideFeedbacks, vehicleFeedbacks, tourFeedbacks });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== TOGGLE READ STATUS ====================
+router.put('/:type/:id/read', adminOnly, async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { isRead } = req.body;
+    const config = feedbackConfig[type];
+    if (!config) return res.status(400).json({ error: 'Invalid feedback type' });
+
+    const updated = await prisma[config.model].update({
+      where: { id },
+      data: { isRead: !!isRead }
+    });
+    res.json({ success: true, feedback: updated });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
