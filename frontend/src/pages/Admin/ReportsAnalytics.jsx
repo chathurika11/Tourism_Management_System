@@ -22,7 +22,34 @@ ChartJS.register(
   PointElement, LineElement, Title, Tooltip, Legend
 );
 
+const doughnutPercentagePlugin = {
+  id: 'doughnutPercentagePlugin',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const dataset = chart.data.datasets[0];
+    const meta = chart.getDatasetMeta(0);
+
+    ctx.save();
+    ctx.font = 'bold 12px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    meta.data.forEach((arc, index) => {
+      const value = dataset.data[index];
+
+      if (!value || value <= 0) return;
+
+      const pos = arc.tooltipPosition();
+      ctx.fillText(`${value}%`, pos.x, pos.y);
+    });
+
+    ctx.restore();
+  }
+};
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 
 const ReportsAnalytics = () => {
   const [loading, setLoading] = useState(true);
@@ -206,14 +233,21 @@ const ReportsAnalytics = () => {
     }
   };
 
-  const stackedBarOpts = {
-    ...smallChartOpts,
-    scales: {
-      ...smallChartOpts.scales,
-      x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-      y: { stacked: true, ticks: { font: { size: 10 } }, beginAtZero: true }
+  const groupedBarOpts = {
+  ...smallChartOpts,
+  scales: {
+    x: {
+      stacked: false,
+      ticks: { font: { size: 10 } },
+      grid: { display: false }
+    },
+    y: {
+      stacked: false,
+      ticks: { font: { size: 10 } },
+      beginAtZero: true
     }
-  };
+  }
+};
 
   const doughnutOpts = {
     responsive: true,
@@ -305,12 +339,16 @@ const ReportsAnalytics = () => {
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Booking Distribution {year}</h2>
               <div className="max-w-[220px] mx-auto">
-                <Doughnut data={doughnutData} options={doughnutOpts} />
+                <Doughnut
+  data={doughnutData}
+  options={doughnutOpts}
+  plugins={[doughnutPercentagePlugin]}
+/>
               </div>
             </div>
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Monthly Bookings by Type — {year}</h2>
-              <Bar data={monthlyBookingData} options={stackedBarOpts} />
+              <Bar data={monthlyBookingData} options={groupedBarOpts} />
             </div>
           </div>
 
@@ -396,7 +434,7 @@ const ReportsAnalytics = () => {
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Monthly Commission by Type — {year}</h2>
-              <Bar data={commissionBarData} options={{ ...stackedBarOpts, plugins: { ...stackedBarOpts.plugins, tooltip: { callbacks: { label: ctx => ` Rs ${ctx.parsed.y.toLocaleString()}` } } } }} />
+              <Bar data={commissionBarData} options={{ ...groupedBarOpts, plugins: { ...groupedBarOpts.plugins, tooltip: { callbacks: { label: ctx => ` Rs ${ctx.parsed.y.toLocaleString()}` } } } }} />
             </div>
           </div>
 
