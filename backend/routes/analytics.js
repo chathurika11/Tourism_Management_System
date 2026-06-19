@@ -57,16 +57,26 @@ const hasService = (booking, service) => {
 };
 
 const getPackageServices = async (booking) => {
-  if (!booking.packageName) return null;
+  try {
+    if (!booking.packageName) return null;
 
-  return await prisma.tourPackage.findFirst({
-    where: { name: booking.packageName },
-    select: {
-      hotelId: true,
-      vehicleId: true,
-      guideId: true
-    }
-  });
+    return await prisma.tourPackage.findFirst({
+      where: {
+        name: {
+          equals: booking.packageName,
+          mode: 'insensitive'
+        }
+      },
+      select: {
+        hotelId: true,
+        vehicleId: true,
+        guideId: true
+      }
+    });
+  } catch (err) {
+    console.log('Package lookup failed:', err.message);
+    return null;
+  }
 };
 
 // ---------- Admin Reports ----------
@@ -79,15 +89,15 @@ router.get('/reports', async (req, res) => {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        bookingDate: {
-          gte: startOfYear,
-          lte: endOfYear
-        }
-      }
-    });
-
+   const bookings = await prisma.booking.findMany({
+  where: {
+    status: 'confirmed',
+    bookingDate: {
+      gte: startOfYear,
+      lte: endOfYear
+    }
+  }
+});
     const totalRevenue = bookings.reduce(
       (sum, b) => sum + (b.totalAmount || 0),
       0
@@ -191,14 +201,15 @@ router.get('/commission-summary', async (req, res) => {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        bookingDate: {
-          gte: startOfYear,
-          lte: endOfYear
-        }
-      }
-    });
+   const bookings = await prisma.booking.findMany({
+  where: {
+    status: 'confirmed',
+    bookingDate: {
+      gte: startOfYear,
+      lte: endOfYear
+    }
+  }
+});
 
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -318,6 +329,122 @@ router.get('/commission-summary', async (req, res) => {
     });
   } catch (err) {
     console.error('Commission error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Most Booked Items + Item Commission ----------
+router.get('/most-booked-items', async (req, res) => {
+  try {
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+
+    const bookings = await prisma.booking.findMany({
+  where: {
+    status: 'confirmed',
+    bookingDate: {
+      gte: startOfYear,
+      lte: endOfYear
+    }
+  }
+});
+
+    const hotelCounts = {};
+    const vehicleCounts = {};
+    const guideCounts = {};
+    const packageCounts = {};
+
+    const hotelCommission = {};
+    const vehicleCommission = {};
+    const guideCommission = {};
+    const packageCommission = {};
+
+    const addCount = (obj, name) => {
+      if (!name) return;
+      obj[String(name)] = (obj[String(name)] || 0) + 1;
+    };
+
+    const addMoney = (obj, name, amount) => {
+      if (!name) return;
+      obj[String(name)] = (obj[String(name)] || 0) + amount;
+    };
+
+    for (const b of bookings) {
+      const amount = b.totalAmount || 0;
+      const destinations = b.destinations;
+      const data = destinations
+        ? (Array.isArray(destinations) ? destinations : [destinations])
+        : [];
+
+      if (b.packageName) {
+        addCount(packageCounts, b.packageName);
+        addMoney(packageCommission, b.packageName, amount * 0.25);
+      }
+
+      for (const d of data) {
+        const hotelName =
+          d.hotelName ||
+          d.hotel?.name ||
+          d.selectedHotel?.name ||
+          d.hotel?.hotelName ||
+          d.selectedHotel?.hotelName ||
+          d.hotelTitle ||
+          d.hotelId;
+
+        const vehicleName =
+          d.vehicle?.model ||
+          d.vehicle?.type ||
+          d.vehicleName ||
+          d.vehicle?.name ||
+          d.vehicle?.vehicleName ||
+          d.selectedVehicle?.name ||
+          d.selectedVehicle?.vehicleName ||
+          d.vehicleId;
+
+        const guideName =
+          d.guideName ||
+          d.guide?.name ||
+          d.selectedGuide?.name ||
+          d.guide?.fullName ||
+          d.selectedGuide?.fullName ||
+          d.guideId;
+
+        addCount(hotelCounts, hotelName);
+        addCount(vehicleCounts, vehicleName);
+        addCount(guideCounts, guideName);
+
+        addMoney(hotelCommission, hotelName, amount * 0.25);
+        addMoney(vehicleCommission, vehicleName, amount * 0.15);
+        addMoney(guideCommission, guideName, amount * 0.25);
+      }
+    }
+
+    const format = (obj) =>
+      Object.entries(obj)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+    const formatMoney = (obj) =>
+      Object.entries(obj)
+        .map(([name, amount]) => ({ name, amount: Math.round(amount) }))
+        .sort((a, b) => b.amount - a.amount);
+
+    res.json({
+      hotels: format(hotelCounts),
+      vehicles: format(vehicleCounts),
+      guides: format(guideCounts),
+      packages: format(packageCounts),
+
+      hotelCommissions: formatMoney(hotelCommission),
+      vehicleCommissions: formatMoney(vehicleCommission),
+      guideCommissions: formatMoney(guideCommission),
+      packageCommissions: formatMoney(packageCommission),
+
+      year
+    });
+  } catch (err) {
+    console.error('Most booked items error:', err);
     res.status(500).json({ error: err.message });
   }
 });
