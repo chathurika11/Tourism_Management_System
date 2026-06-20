@@ -95,26 +95,21 @@ const ensureMainAdmin = async () => {
   }
 };
 
+
+
 const PORT = process.env.PORT || 5000;
 
-<<<<<<< HEAD
 const startServer = async () => {
   try {
     await prisma.$connect();
     console.log('✅ Database connection established');
+
     await ensureMainAdmin();
-=======
-ensureMainAdmin()
-  .catch((error) => {
-    console.error('Failed to ensure main admin:', error.message);
-  })
-  .finally(() => {
->>>>>>> edcaf946b054e46e1d5e33613abefb57f34e6822
+
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`📡 API available at http://localhost:${PORT}/api`);
     });
-<<<<<<< HEAD
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
     process.exit(1);
@@ -122,6 +117,3 @@ ensureMainAdmin()
 };
 
 startServer();
-=======
-  });
->>>>>>> edcaf946b054e46e1d5e33613abefb57f34e6822
