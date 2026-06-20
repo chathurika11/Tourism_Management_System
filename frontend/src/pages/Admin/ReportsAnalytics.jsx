@@ -22,7 +22,34 @@ ChartJS.register(
   PointElement, LineElement, Title, Tooltip, Legend
 );
 
+const doughnutPercentagePlugin = {
+  id: 'doughnutPercentagePlugin',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const dataset = chart.data.datasets[0];
+    const meta = chart.getDatasetMeta(0);
+
+    ctx.save();
+    ctx.font = 'bold 12px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    meta.data.forEach((arc, index) => {
+      const value = dataset.data[index];
+
+      if (!value || value <= 0) return;
+
+      const pos = arc.tooltipPosition();
+      ctx.fillText(`${value}%`, pos.x, pos.y);
+    });
+
+    ctx.restore();
+  }
+};
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 
 const ReportsAnalytics = () => {
   const [loading, setLoading] = useState(true);
@@ -43,43 +70,67 @@ const ReportsAnalytics = () => {
   const [totalGuideComm, setTotalGuideComm] = useState(0);
   const [totalVehicleComm, setTotalVehicleComm] = useState(0);
   const [monthlyBreakdown, setMonthlyBreakdown] = useState({});
+  const [mostBooked, setMostBooked] = useState({
+  hotels: [],
+  vehicles: [],
+  guides: [],
+  packages: []
+});
 
   const refreshData = () => {
     setRefreshKey(prev => prev + 1);
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+  const fetchData = async () => {
+    setLoading(true);
+
+    try {
+      const repRes = await API.get(`/analytics/reports?year=${year}`);
+      const r = repRes.data;
+
+      setTypeCounts(r.typeCounts || {});
+      setTypePercentages(r.typePercentages || {});
+      setMonthlyByType(r.monthlyByType || {});
+      setTotalBookings(r.total || 0);
+      setTotalRevenue(r.totalRevenue || 0);
+
+      const commRes = await API.get(`/analytics/commission-summary?year=${year}`);
+      const c = commRes.data;
+
+      setTotalCommission(c.totalCommission || 0);
+      setTotalHotelComm(c.totalHotelCommission || 0);
+      setTotalGuideComm(c.totalGuideCommission || 0);
+      setTotalVehicleComm(c.totalVehicleCommission || 0);
+      setMonthlyBreakdown(c.monthlyBreakdown || {});
+
       try {
-        const [repRes, commRes] = await Promise.all([
-          API.get(`/analytics/reports?year=${year}`),
-          API.get(`/analytics/commission-summary?year=${year}`)
-        ]);
-
-        const r = repRes.data;
-        setTypeCounts(r.typeCounts || {});
-        setTypePercentages(r.typePercentages || {});
-        setMonthlyByType(r.monthlyByType || {});
-        setTotalBookings(r.total || 0);
-        setTotalRevenue(r.totalRevenue || 0);
-
-        const c = commRes.data;
-        setTotalCommission(c.totalCommission || 0);
-        setTotalHotelComm(c.totalHotelCommission || 0);
-        setTotalGuideComm(c.totalGuideCommission || 0);
-        setTotalVehicleComm(c.totalVehicleCommission || 0);
-        setMonthlyBreakdown(c.monthlyBreakdown || {});
-      } catch (err) {
-        console.error('Analytics fetch error:', err);
-      } finally {
-        setLoading(false);
+        const mostRes = await API.get(`/analytics/most-booked-items?year=${year}`);
+        setMostBooked(mostRes.data || {
+          hotels: [],
+          vehicles: [],
+          guides: [],
+          packages: []
+        });
+      } catch (error) {
+        console.log('Most booked not loaded yet');
+        setMostBooked({
+          hotels: [],
+          vehicles: [],
+          guides: [],
+          packages: []
+        });
       }
-    };
 
-    fetchData();
-  }, [year, refreshKey]);
+    } catch (err) {
+      console.error('Analytics fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  fetchData();
+}, [year, refreshKey]);
   const handleDownloadPDF = () => {
     window.print();
   };
@@ -206,14 +257,21 @@ const ReportsAnalytics = () => {
     }
   };
 
-  const stackedBarOpts = {
-    ...smallChartOpts,
-    scales: {
-      ...smallChartOpts.scales,
-      x: { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } },
-      y: { stacked: true, ticks: { font: { size: 10 } }, beginAtZero: true }
+  const groupedBarOpts = {
+  ...smallChartOpts,
+  scales: {
+    x: {
+      stacked: false,
+      ticks: { font: { size: 10 } },
+      grid: { display: false }
+    },
+    y: {
+      stacked: false,
+      ticks: { font: { size: 10 } },
+      beginAtZero: true
     }
-  };
+  }
+};
 
   const doughnutOpts = {
     responsive: true,
@@ -233,6 +291,24 @@ const ReportsAnalytics = () => {
     { label: 'Guide Bookings', value: `${typeCounts.guide || 0} (${typePercentages.guide || 0}%)`, color: 'border-teal-400', textColor: 'text-teal-600', icon: Users },
     { label: 'Tour Bookings', value: `${typeCounts.tour || 0} (${typePercentages.tour || 0}%)`, color: 'border-yellow-400', textColor: 'text-yellow-600', icon: Compass },
   ];
+  const createMostBookedData = (items, label, color) => ({
+  labels: items.map(item => item.name),
+  datasets: [{
+    label,
+    data: items.map(item => item.count),
+    backgroundColor: color,
+    borderRadius: 6
+  }]
+});
+const createCommissionItemData = (items, label, color) => ({
+  labels: items.map(item => item.name),
+  datasets: [{
+    label,
+    data: items.map(item => item.amount),
+    backgroundColor: color,
+    borderRadius: 6
+  }]
+});
 
   return (
     <div id="report-content">
@@ -305,15 +381,104 @@ const ReportsAnalytics = () => {
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Booking Distribution {year}</h2>
               <div className="max-w-[220px] mx-auto">
-                <Doughnut data={doughnutData} options={doughnutOpts} />
+                <Doughnut
+  data={doughnutData}
+  options={doughnutOpts}
+  plugins={[doughnutPercentagePlugin]}
+/>
               </div>
             </div>
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Monthly Bookings by Type — {year}</h2>
-              <Bar data={monthlyBookingData} options={stackedBarOpts} />
+              <Bar data={monthlyBookingData} options={groupedBarOpts} />
             </div>
           </div>
 
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Hotels
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Hotels
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.hotels,
+      'Hotel Bookings',
+      '#093C5D'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Vehicles
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Vehicles
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.vehicles,
+      'Vehicle Bookings',
+      '#3B7597'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Guides
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Guides
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.guides,
+      'Guide Bookings',
+      '#5DF8D8'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Packages
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Packages
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.packages,
+      'Package Bookings',
+      '#F59E0B'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+</div>
           {/* Monthly Breakdown Table */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b">
@@ -396,9 +561,42 @@ const ReportsAnalytics = () => {
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3 text-sm">Monthly Commission by Type — {year}</h2>
-              <Bar data={commissionBarData} options={{ ...stackedBarOpts, plugins: { ...stackedBarOpts.plugins, tooltip: { callbacks: { label: ctx => ` Rs ${ctx.parsed.y.toLocaleString()}` } } } }} />
+              <Bar data={commissionBarData} options={{ ...groupedBarOpts, plugins: { ...groupedBarOpts.plugins, tooltip: { callbacks: { label: ctx => ` Rs ${ctx.parsed.y.toLocaleString()}` } } } }} />
             </div>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Hotel Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.hotelCommissions || [], 'Hotel Commission', '#093C5D')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Vehicle Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.vehicleCommissions || [], 'Vehicle Commission', '#3B7597')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Guide Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.guideCommissions || [], 'Guide Commission', '#5DF8D8')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Package Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.packageCommissions || [], 'Package Commission', '#F59E0B')}
+      options={groupedBarOpts}
+    />
+  </div>
+</div>
 
           {/* Commission Table */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">

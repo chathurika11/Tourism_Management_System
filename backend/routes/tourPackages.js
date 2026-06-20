@@ -111,24 +111,31 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
     const hotelIds = req.body.hotelIds ? JSON.parse(req.body.hotelIds) : [];
     const vehicleIds = req.body.vehicleIds ? JSON.parse(req.body.vehicleIds) : [];
     const guideIds = req.body.guideIds ? JSON.parse(req.body.guideIds) : [];
+     
+    console.log(req.body);
 
-    const data = {
-      name: req.body.name,
-      description: req.body.description,
-      duration: req.body.duration,                    // string, no parseInt
-      district: req.body.district,
-      maxPeople: req.body.maxPeople,                  // string, no parseInt
-      bestSeason: req.body.bestSeason || null,
-      location: req.body.district,
-      price: parseFloat(req.body.price),
-      popular: req.body.popular === 'true',
-      image: imageUrl,
-      mealPlan: mealPlan.join(', '),
-      inclusions: inclusions,
-      hotelId: hotelIds[0] || null,
-      vehicleId: vehicleIds[0] || null,
-      guideId: guideIds[0] || null,
-    };
+    const selectedDistrict =
+  req.body.district ||
+  req.body.location ||
+  (req.body.destinations ? JSON.parse(req.body.destinations)?.[0]?.district : null);
+
+const data = {
+  name: req.body.name,
+  description: req.body.description,
+  duration: req.body.duration,
+  district: selectedDistrict || 'Kandy',
+  maxPeople: req.body.maxPeople || "10",
+  bestSeason: req.body.bestSeason || null,
+  location: selectedDistrict || 'Kandy',
+  price: parseFloat(req.body.price),
+  popular: req.body.popular === 'true',
+  image: imageUrl,
+  mealPlan: mealPlan.join(', '),
+  inclusions: inclusions,
+  hotelId: hotelIds[0] || null,
+  vehicleId: vehicleIds[0] || null,
+  guideId: guideIds[0] || null,
+};
     const pkg = await prisma.tourPackage.create({ data });
     await logAudit(req, 'PACKAGE_CREATED', 'TourPackage', pkg.id, {
       description: `Added ${pkg.name} tour package`,

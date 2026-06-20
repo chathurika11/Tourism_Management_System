@@ -188,6 +188,34 @@ model Guide {
   @@index([popular])
 }
 
+model ProviderRequest {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  providerType    String
+  requesterName   String
+  requesterEmail  String
+  requesterPhone  String
+  businessName    String?
+  district        String
+  location        String
+  price           Float?
+  status          String   @default("pending")
+  message         String?
+  rejectionReason String?
+  data            Json
+  images          String[]
+  createdEntityId String?
+  reviewedBy      String?  @db.ObjectId
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([providerType])
+  @@index([requesterEmail])
+  @@index([status])
+  @@index([createdAt])
+  @@map("provider_requests")
+}
+
 
 model VehicleFeedback {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId

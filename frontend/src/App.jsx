@@ -45,6 +45,7 @@ const VehicleDetailPage = lazy(() => import('./pages/VehicleDetailPage'));
 const HotelDetailPage = lazy(() => import('./pages/HotelDetailPage'));
 const TourDetailPage = lazy(() => import('./pages/TourDetailPage'));
 const GuideDetailPage = lazy(() => import('./pages/GuideDetailPage'));
+const PartnerRegister = lazy(() => import('./pages/PartnerRegister'));
 
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminHotels = lazy(() => import('./pages/Admin/AdminHotels'));
@@ -63,6 +64,7 @@ const AuditLogs = lazy(() => import('./pages/Admin/AuditLogs'));
 const CustomersManagement = lazy(() => import('./pages/CustomersManagement'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const MyReviews = lazy(() => import('./pages/MyReviews'));
+const ProviderRequests = lazy(() => import('./pages/Admin/ProviderRequests'));
 
 function App() {
   return (
@@ -90,6 +92,7 @@ function App() {
                   <Route path="/vehicles/:id" element={<AdminRedirect><VehicleDetailPage /></AdminRedirect>} />
                   <Route path="/guides" element={<AdminRedirect><TourGuides /></AdminRedirect>} />
                   <Route path="/guides/:id" element={<AdminRedirect><GuideDetailPage /></AdminRedirect>} />
+                  <Route path="/partner-register" element={<AdminRedirect><PartnerRegister /></AdminRedirect>} />
                   <Route path="/plan-tour" element={<AdminRedirect><CustomBooking /></AdminRedirect>} />
                   <Route path="/booking/:id" element={<PrivateRoute><AdminRedirect><BookingForm /></AdminRedirect></PrivateRoute>} />
                   <Route path="/customer/dashboard" element={<PrivateRoute roles={['user']}><CustomerDashboard /></PrivateRoute>} />
@@ -116,6 +119,7 @@ function App() {
                     <Route path="logs" element={<PrivateRoute roles={['admin']}><AuditLogs /></PrivateRoute>} />
                     <Route path="tour-packages" element={<AdminTourPackages />} />
                     <Route path="districts" element={<AdminDistricts />} />
+                    <Route path="provider-requests" element={<ProviderRequests />} />
                   </Route>
                 </Routes>
               </Suspense>
