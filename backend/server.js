@@ -31,6 +31,7 @@ const tourPackageRoutes = require('./routes/tourPackages');
 const paymentRoutes = require('./routes/payments');
 const districtRoutes = require('./routes/districts');
 const customerRoutes = require('./routes/customers');
+const providerRequestRoutes = require('./routes/providerRequests');
 
 
 // const userRoutes = require('./routes/users'); // uncomment if needed
@@ -47,6 +48,7 @@ app.use('/api/tour-packages', tourPackageRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/districts', districtRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/provider-requests', providerRequestRoutes);
 
 // app.use('/api/users', userRoutes);
 
@@ -101,13 +103,20 @@ const ensureMainAdmin = async () => {
 };
 
 const PORT = process.env.PORT || 5000;
-ensureMainAdmin()
-  .catch((error) => {
-    console.error('Failed to ensure main admin:', error.message);
-  })
-  .finally(() => {
+
+const startServer = async () => {
+  try {
+    await prisma.$connect();
+    console.log('✅ Database connection established');
+    await ensureMainAdmin();
     app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`📡 API available at http://localhost:${PORT}/api`);
     });
-  });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
+
+startServer();

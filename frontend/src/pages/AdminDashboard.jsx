@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Hotel, Car, Users, LogOut,
   Menu, X, User, BarChart3, UserPlus, MessageSquare, Package,
-  MapPin, ChevronRight, ScrollText, CalendarCheck
+  MapPin, ChevronRight, ScrollText, CalendarCheck, Inbox
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -45,6 +45,7 @@ const AdminDashboard = () => {
     { path: '/admin/tour-packages', name: 'Manage Tour Packages', icon: Package },
     { path: '/admin/bookings', name: 'Manage Bookings', icon: CalendarCheck },
     { path: '/admin/feedbacks', name: 'Manage Feedbacks', icon: MessageSquare },
+    { path: '/admin/provider-requests', name: 'Provider Requests', icon: Inbox },
     { path: '/admin/districts', name: 'Destinations', icon: MapPin },
     ...(isMainAdmin ? [{ path: '/admin/users', name: 'Registered Users', icon: UserPlus }] : []),
     ...(isMainAdmin ? [{ path: '/admin/logs', name: 'Audit Logs', icon: ScrollText }] : []),
@@ -163,6 +164,7 @@ const AdminDashboard = () => {
                   <Link to="/admin/tour-packages" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#2F5D50' }}>Manage Packages</Link>
                   <Link to="/admin/bookings" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#1A4A6B' }}>Manage Bookings</Link>
                   <Link to="/admin/districts" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#5F4B8B' }}>Destinations</Link>
+                  <Link to="/admin/provider-requests" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#3A6B35' }}>Provider Requests</Link>
                   {isMainAdmin && <Link to="/admin/users" className="text-center py-3 rounded-xl transition hover:opacity-90 font-medium" style={{ backgroundColor: '#D3DAD9', color: '#1F2A3A' }}>View Users</Link>}
                   <Link to="/admin/feedbacks" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#2C5F8A' }}>Manage Feedbacks</Link>
                   {isMainAdmin && <Link to="/admin/reports" className="text-white text-center py-3 rounded-xl transition hover:opacity-90" style={{ backgroundColor: '#6B4E71' }}>Reports & Commission</Link>}

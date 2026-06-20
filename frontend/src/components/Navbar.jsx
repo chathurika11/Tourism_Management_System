@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare } from 'lucide-react';
+import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare, Handshake } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -41,6 +41,7 @@ const Navbar = () => {
     { path: '/vehicles', name: 'Vehicles', icon: Car },
     { path: '/guides', name: 'Guides', icon: Users },
     { path: '/plan-tour', name: 'Plan Tour', icon: MapPin },
+    { path: '/partner-register', name: 'Partner', icon: Handshake },
   ];
 
   return (
