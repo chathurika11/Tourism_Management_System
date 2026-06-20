@@ -70,43 +70,67 @@ const ReportsAnalytics = () => {
   const [totalGuideComm, setTotalGuideComm] = useState(0);
   const [totalVehicleComm, setTotalVehicleComm] = useState(0);
   const [monthlyBreakdown, setMonthlyBreakdown] = useState({});
+  const [mostBooked, setMostBooked] = useState({
+  hotels: [],
+  vehicles: [],
+  guides: [],
+  packages: []
+});
 
   const refreshData = () => {
     setRefreshKey(prev => prev + 1);
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+  const fetchData = async () => {
+    setLoading(true);
+
+    try {
+      const repRes = await API.get(`/analytics/reports?year=${year}`);
+      const r = repRes.data;
+
+      setTypeCounts(r.typeCounts || {});
+      setTypePercentages(r.typePercentages || {});
+      setMonthlyByType(r.monthlyByType || {});
+      setTotalBookings(r.total || 0);
+      setTotalRevenue(r.totalRevenue || 0);
+
+      const commRes = await API.get(`/analytics/commission-summary?year=${year}`);
+      const c = commRes.data;
+
+      setTotalCommission(c.totalCommission || 0);
+      setTotalHotelComm(c.totalHotelCommission || 0);
+      setTotalGuideComm(c.totalGuideCommission || 0);
+      setTotalVehicleComm(c.totalVehicleCommission || 0);
+      setMonthlyBreakdown(c.monthlyBreakdown || {});
+
       try {
-        const [repRes, commRes] = await Promise.all([
-          API.get(`/analytics/reports?year=${year}`),
-          API.get(`/analytics/commission-summary?year=${year}`)
-        ]);
-
-        const r = repRes.data;
-        setTypeCounts(r.typeCounts || {});
-        setTypePercentages(r.typePercentages || {});
-        setMonthlyByType(r.monthlyByType || {});
-        setTotalBookings(r.total || 0);
-        setTotalRevenue(r.totalRevenue || 0);
-
-        const c = commRes.data;
-        setTotalCommission(c.totalCommission || 0);
-        setTotalHotelComm(c.totalHotelCommission || 0);
-        setTotalGuideComm(c.totalGuideCommission || 0);
-        setTotalVehicleComm(c.totalVehicleCommission || 0);
-        setMonthlyBreakdown(c.monthlyBreakdown || {});
-      } catch (err) {
-        console.error('Analytics fetch error:', err);
-      } finally {
-        setLoading(false);
+        const mostRes = await API.get(`/analytics/most-booked-items?year=${year}`);
+        setMostBooked(mostRes.data || {
+          hotels: [],
+          vehicles: [],
+          guides: [],
+          packages: []
+        });
+      } catch (error) {
+        console.log('Most booked not loaded yet');
+        setMostBooked({
+          hotels: [],
+          vehicles: [],
+          guides: [],
+          packages: []
+        });
       }
-    };
 
-    fetchData();
-  }, [year, refreshKey]);
+    } catch (err) {
+      console.error('Analytics fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  fetchData();
+}, [year, refreshKey]);
   const handleDownloadPDF = () => {
     window.print();
   };
@@ -267,6 +291,24 @@ const ReportsAnalytics = () => {
     { label: 'Guide Bookings', value: `${typeCounts.guide || 0} (${typePercentages.guide || 0}%)`, color: 'border-teal-400', textColor: 'text-teal-600', icon: Users },
     { label: 'Tour Bookings', value: `${typeCounts.tour || 0} (${typePercentages.tour || 0}%)`, color: 'border-yellow-400', textColor: 'text-yellow-600', icon: Compass },
   ];
+  const createMostBookedData = (items, label, color) => ({
+  labels: items.map(item => item.name),
+  datasets: [{
+    label,
+    data: items.map(item => item.count),
+    backgroundColor: color,
+    borderRadius: 6
+  }]
+});
+const createCommissionItemData = (items, label, color) => ({
+  labels: items.map(item => item.name),
+  datasets: [{
+    label,
+    data: items.map(item => item.amount),
+    backgroundColor: color,
+    borderRadius: 6
+  }]
+});
 
   return (
     <div id="report-content">
@@ -352,6 +394,91 @@ const ReportsAnalytics = () => {
             </div>
           </div>
 
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Hotels
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Hotels
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.hotels,
+      'Hotel Bookings',
+      '#093C5D'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Vehicles
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Vehicles
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.vehicles,
+      'Vehicle Bookings',
+      '#3B7597'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Guides
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Guides
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.guides,
+      'Guide Bookings',
+      '#5DF8D8'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">
+      Most Booked Packages
+    </h2>
+
+    <div className="bg-white rounded-xl shadow-sm p-4">
+  <h2 className="font-semibold text-primary mb-3">
+    Most Booked Packages
+  </h2>
+
+  <Bar
+    data={createMostBookedData(
+      mostBooked.packages,
+      'Package Bookings',
+      '#F59E0B'
+    )}
+    options={groupedBarOpts}
+  />
+</div>
+  </div>
+</div>
           {/* Monthly Breakdown Table */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b">
@@ -437,6 +564,39 @@ const ReportsAnalytics = () => {
               <Bar data={commissionBarData} options={{ ...groupedBarOpts, plugins: { ...groupedBarOpts.plugins, tooltip: { callbacks: { label: ctx => ` Rs ${ctx.parsed.y.toLocaleString()}` } } } }} />
             </div>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Hotel Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.hotelCommissions || [], 'Hotel Commission', '#093C5D')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Vehicle Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.vehicleCommissions || [], 'Vehicle Commission', '#3B7597')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Guide Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.guideCommissions || [], 'Guide Commission', '#5DF8D8')}
+      options={groupedBarOpts}
+    />
+  </div>
+
+  <div className="bg-white rounded-xl shadow-sm p-4">
+    <h2 className="font-semibold text-primary mb-3">Package Commission by Item</h2>
+    <Bar
+      data={createCommissionItemData(mostBooked.packageCommissions || [], 'Package Commission', '#F59E0B')}
+      options={groupedBarOpts}
+    />
+  </div>
+</div>
 
           {/* Commission Table */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
