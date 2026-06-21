@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Building2, Car, CheckCircle2, Clock, Search, Upload, UserRound, XCircle, Mail } from 'lucide-react';
+import { Building2, Car, CheckCircle2, Clock, Search, Upload, UserRound, XCircle, Mail, X, Edit2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API, { getImageUrl } from '../services/api';
 
@@ -67,6 +67,11 @@ const PartnerRegister = () => {
   const [lookupEmail, setLookupEmail] = useState('');
   const [emailToSearch, setEmailToSearch] = useState('');
 
+  // Edit modal state
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [showEditModal, setShowEditModal] = useState(false);
+
   const idsQuery = useMemo(() => requestIds.join(','), [requestIds]);
 
   const { data: myRequests = [], refetch, isFetching } = useQuery({
@@ -112,17 +117,14 @@ const PartnerRegister = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     if (!validateEmail(formData.requesterEmail)) {
       toast.error('Email must be a Gmail address (@gmail.com)');
       return;
     }
-
     if (!validatePhone(formData.requesterPhone)) {
       toast.error('Phone must start with +94 and contain exactly 9 digits.');
       return;
     }
-
     const fd = new FormData();
     Object.entries(formData).forEach(([key, value]) => fd.append(key, value));
     fd.append('pricePerDay', formData.price);
@@ -136,51 +138,164 @@ const PartnerRegister = () => {
     setEmailToSearch(lookupEmail.trim());
   };
 
-  const renderSpecificFields = () => {
-    if (formData.providerType === 'guide') {
+  // ---- Edit handlers ----
+  const handleEditClick = (request) => {
+    setEditingRequest(request);
+    const providerType = request.providerType;
+    const data = request.data || {};
+
+    // Base fields common to all types
+    const base = {
+      requesterName: request.requesterName || '',
+      requesterPhone: request.requesterPhone || '',
+      businessName: request.businessName || '',
+      district: request.district || '',
+      location: request.location || '',
+      price: request.price || '',
+      message: request.message || '',
+      providerType: providerType,
+    };
+
+    // Type-specific fields
+    let specific = {};
+    if (providerType === 'guide') {
+      specific = {
+        specialty: data.specialty || '',
+        language: data.language || '',
+        experience: data.experience || '',
+        certification: data.certification || '',
+      };
+    } else if (providerType === 'hotel') {
+      specific = {
+        amenities: (data.amenities || []).join(', '),
+        checkIn: data.checkIn || '2:00 PM',
+        checkOut: data.checkOut || '12:00 PM',
+        freeCancellationHours: data.freeCancellationHours || '48',
+        breakfastIncluded: data.breakfastIncluded || false,
+      };
+    } else if (providerType === 'vehicle') {
+      specific = {
+        type: data.type || '',
+        passengers: data.passengers || '',
+        fuelType: data.fuelType || '',
+        fuelEfficiency: data.fuelEfficiency || '',
+        year: data.year || '',
+        pickupLocations: (data.pickupLocations || []).join(', '),
+        includedFeatures: (data.includedFeatures || []).join(', '),
+        securityDeposit: data.securityDeposit || '',
+      };
+    }
+
+    setEditFormData({ ...base, ...specific });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        requesterName: editFormData.requesterName,
+        requesterPhone: editFormData.requesterPhone,
+        businessName: editFormData.businessName,
+        district: editFormData.district,
+        location: editFormData.location,
+        price: parseFloat(editFormData.price),
+        message: editFormData.message,
+      };
+
+      // Add type-specific fields
+      const providerType = editingRequest.providerType;
+      if (providerType === 'guide') {
+        payload.specialty = editFormData.specialty;
+        payload.language = editFormData.language;
+        payload.experience = editFormData.experience;
+        payload.certification = editFormData.certification;
+      } else if (providerType === 'hotel') {
+        payload.amenities = editFormData.amenities.split(',').map(s => s.trim()).filter(Boolean);
+        payload.checkIn = editFormData.checkIn;
+        payload.checkOut = editFormData.checkOut;
+        payload.freeCancellationHours = parseInt(editFormData.freeCancellationHours);
+        payload.breakfastIncluded = editFormData.breakfastIncluded;
+      } else if (providerType === 'vehicle') {
+        payload.type = editFormData.type;
+        payload.passengers = parseInt(editFormData.passengers);
+        payload.fuelType = editFormData.fuelType;
+        payload.fuelEfficiency = editFormData.fuelEfficiency;
+        payload.year = editFormData.year;
+        payload.pickupLocations = editFormData.pickupLocations.split(',').map(s => s.trim()).filter(Boolean);
+        payload.includedFeatures = editFormData.includedFeatures.split(',').map(s => s.trim()).filter(Boolean);
+        payload.securityDeposit = parseFloat(editFormData.securityDeposit);
+      }
+
+      await API.put(`/provider-requests/${editingRequest.id}`, payload);
+      toast.success('Request updated successfully');
+      setShowEditModal(false);
+      setEditingRequest(null);
+      refetch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Update failed');
+    }
+  };
+
+  const handleCancelRequest = async (id) => {
+    if (!window.confirm('Are you sure you want to cancel this request?')) return;
+    try {
+      await API.delete(`/provider-requests/${id}`);
+      toast.success('Request cancelled');
+      refetch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Cancellation failed');
+    }
+  };
+
+  // ---- Render form fields (used in main form and edit modal) ----
+  const renderSpecificFields = (formDataObj, setFormDataObj, providerType, isEdit = false) => {
+    const update = (field, value) => setFormDataObj((prev) => ({ ...prev, [field]: value }));
+
+    if (providerType === 'guide') {
       return (
         <>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
-            <input className="input-field" value={formData.specialty} onChange={(e) => updateField('specialty', e.target.value)} required />
+            <input className="input-field" value={formDataObj.specialty} onChange={(e) => update('specialty', e.target.value)} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Languages</label>
-            <input className="input-field" value={formData.language} onChange={(e) => updateField('language', e.target.value)} />
+            <input className="input-field" value={formDataObj.language} onChange={(e) => update('language', e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
-            <input className="input-field" placeholder="e.g., 5 years" value={formData.experience} onChange={(e) => updateField('experience', e.target.value)} />
+            <input className="input-field" placeholder="e.g., 5 years" value={formDataObj.experience} onChange={(e) => update('experience', e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Certification</label>
-            <input className="input-field" value={formData.certification} onChange={(e) => updateField('certification', e.target.value)} />
+            <input className="input-field" value={formDataObj.certification} onChange={(e) => update('certification', e.target.value)} />
           </div>
         </>
       );
     }
 
-    if (formData.providerType === 'hotel') {
+    if (providerType === 'hotel') {
       return (
         <>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Amenities (comma separated)</label>
-            <textarea className="input-field" rows="3" value={formData.amenities} onChange={(e) => updateField('amenities', e.target.value)} />
+            <textarea className="input-field" rows="3" value={formDataObj.amenities} onChange={(e) => update('amenities', e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Check-in</label>
-            <input className="input-field" value={formData.checkIn} onChange={(e) => updateField('checkIn', e.target.value)} />
+            <input className="input-field" value={formDataObj.checkIn} onChange={(e) => update('checkIn', e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Check-out</label>
-            <input className="input-field" value={formData.checkOut} onChange={(e) => updateField('checkOut', e.target.value)} />
+            <input className="input-field" value={formDataObj.checkOut} onChange={(e) => update('checkOut', e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Free cancellation hours</label>
-            <input className="input-field" type="number" value={formData.freeCancellationHours} onChange={(e) => updateField('freeCancellationHours', e.target.value)} />
+            <input className="input-field" type="number" value={formDataObj.freeCancellationHours} onChange={(e) => update('freeCancellationHours', e.target.value)} />
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" checked={formData.breakfastIncluded} onChange={(e) => updateField('breakfastIncluded', e.target.checked)} />
+            <input type="checkbox" checked={formDataObj.breakfastIncluded} onChange={(e) => update('breakfastIncluded', e.target.checked)} />
             <label className="text-sm text-gray-700">Breakfast included</label>
           </div>
         </>
@@ -192,35 +307,35 @@ const PartnerRegister = () => {
       <>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle type</label>
-          <input className="input-field" placeholder="Car, Van, SUV..." value={formData.type} onChange={(e) => updateField('type', e.target.value)} required />
+          <input className="input-field" placeholder="Car, Van, SUV..." value={formDataObj.type} onChange={(e) => update('type', e.target.value)} required />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Passengers</label>
-          <input className="input-field" type="number" value={formData.passengers} onChange={(e) => updateField('passengers', e.target.value)} required />
+          <input className="input-field" type="number" value={formDataObj.passengers} onChange={(e) => update('passengers', e.target.value)} required />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Fuel type</label>
-          <input className="input-field" value={formData.fuelType} onChange={(e) => updateField('fuelType', e.target.value)} />
+          <input className="input-field" value={formDataObj.fuelType} onChange={(e) => update('fuelType', e.target.value)} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Fuel efficiency</label>
-          <input className="input-field" value={formData.fuelEfficiency} onChange={(e) => updateField('fuelEfficiency', e.target.value)} />
+          <input className="input-field" value={formDataObj.fuelEfficiency} onChange={(e) => update('fuelEfficiency', e.target.value)} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-          <input className="input-field" value={formData.year} onChange={(e) => updateField('year', e.target.value)} />
+          <input className="input-field" value={formDataObj.year} onChange={(e) => update('year', e.target.value)} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Security deposit</label>
-          <input className="input-field" type="number" value={formData.securityDeposit} onChange={(e) => updateField('securityDeposit', e.target.value)} />
+          <input className="input-field" type="number" value={formDataObj.securityDeposit} onChange={(e) => update('securityDeposit', e.target.value)} />
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Pickup locations (comma separated)</label>
-          <textarea className="input-field" rows="3" value={formData.pickupLocations} onChange={(e) => updateField('pickupLocations', e.target.value)} />
+          <textarea className="input-field" rows="3" value={formDataObj.pickupLocations} onChange={(e) => update('pickupLocations', e.target.value)} />
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Included features (comma separated)</label>
-          <textarea className="input-field" rows="3" value={formData.includedFeatures} onChange={(e) => updateField('includedFeatures', e.target.value)} />
+          <textarea className="input-field" rows="3" value={formDataObj.includedFeatures} onChange={(e) => update('includedFeatures', e.target.value)} />
         </div>
       </>
     );
@@ -241,6 +356,7 @@ const PartnerRegister = () => {
       </section>
 
       <div className="container mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Form */}
         <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white rounded-lg shadow p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {providerOptions.map((option) => {
@@ -288,7 +404,7 @@ const PartnerRegister = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">{formData.providerType === 'hotel' ? 'Price per night (Rs)' : 'Price per day (Rs)'}:</label>
               <input className="input-field" type="number" value={formData.price} onChange={(e) => updateField('price', e.target.value)} required />
             </div>
-            {renderSpecificFields()}
+            {renderSpecificFields(formData, setFormData, formData.providerType)}
           </div>
 
           <div>
@@ -316,6 +432,7 @@ const PartnerRegister = () => {
           </button>
         </form>
 
+        {/* Sidebar – Your Requests */}
         <aside className="space-y-6">
           <div className="bg-white rounded-lg shadow p-5">
             <h2 className="text-xl font-bold text-primary mb-3">Check Request Status</h2>
@@ -347,6 +464,16 @@ const PartnerRegister = () => {
                           <StatusIcon size={13} /> {request.status}
                         </span>
                       </div>
+                      {request.status === 'pending' && (
+                        <div className="flex gap-1 items-start">
+                          <button onClick={() => handleEditClick(request)} className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+                            <Edit2 size={14} /> Edit
+                          </button>
+                          <button onClick={() => handleCancelRequest(request.id)} className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1">
+                            <Trash2 size={14} /> Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {request.status === 'rejected' && request.rejectionReason && (
                       <p className="text-sm text-red-600 mt-3">{request.rejectionReason}</p>
@@ -358,6 +485,58 @@ const PartnerRegister = () => {
           </div>
         </aside>
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && editingRequest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-primary">Edit Request</h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name:</label>
+                  <input className="input-field" value={editFormData.requesterName} onChange={(e) => setEditFormData({...editFormData, requesterName: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone:</label>
+                  <input className="input-field" value={editFormData.requesterPhone} onChange={(e) => setEditFormData({...editFormData, requesterPhone: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Business/Display Name:</label>
+                  <input className="input-field" value={editFormData.businessName} onChange={(e) => setEditFormData({...editFormData, businessName: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">District:</label>
+                  <input className="input-field" value={editFormData.district} onChange={(e) => setEditFormData({...editFormData, district: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location:</label>
+                  <input className="input-field" value={editFormData.location} onChange={(e) => setEditFormData({...editFormData, location: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (Rs):</label>
+                  <input type="number" className="input-field" value={editFormData.price} onChange={(e) => setEditFormData({...editFormData, price: e.target.value})} required />
+                </div>
+                {/* Dynamic fields based on provider type */}
+                {renderSpecificFields(editFormData, setEditFormData, editingRequest.providerType, true)}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message:</label>
+                <textarea className="input-field" rows="4" value={editFormData.message} onChange={(e) => setEditFormData({...editFormData, message: e.target.value})} />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn-outline flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Update Request</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
