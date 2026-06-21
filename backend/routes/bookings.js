@@ -4,16 +4,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-function detectCardType(cardNumber) {
-  const first = cardNumber.charAt(0);
-  if (first === '4') return 'Visa';
-  if (first === '5') return 'Mastercard';
-  if (first === '3') return 'Amex';
-  if (first === '6') return 'Discover';
-  return 'Card';
-}
-
-// ---------- GET all bookings (safe fields + separate user fetch) ----------
+// GET all bookings (with pagination & safe user fields)
 router.get('/', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -92,7 +83,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ---------- CREATE booking ----------
+// CREATE booking
 router.post('/', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -145,7 +136,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ---------- UPDATE booking (allows customers to edit dates, passengers, destinations) ----------
+// UPDATE booking – customers cannot edit confirmed bookings
 router.put('/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -158,6 +149,11 @@ router.put('/:id', async (req, res) => {
 
     const isOwner = booking.userId === decoded.id && !['admin', 'staff'].includes(decoded.role);
     if (isOwner) {
+      // Block editing if already confirmed
+      if (booking.status === 'confirmed') {
+        return res.status(400).json({ error: 'Cannot edit a confirmed booking' });
+      }
+      // Check 48h rule for pending bookings
       const start = new Date(booking.startDate);
       const now = new Date();
       const diffHours = (start - now) / (1000 * 60 * 60);
@@ -175,12 +171,7 @@ router.put('/:id', async (req, res) => {
     if (packageName) updateData.packageName = packageName;
     if (type) updateData.type = type;
 
-    // If owner edits a confirmed booking, revert to pending and clear confirmedAt
-    if (isOwner && booking.status === 'confirmed') {
-      updateData.status = 'pending';
-      updateData.confirmedAt = null;
-    }
-    // Always mark as unread so admin reviews changes
+    // If owner edits a pending booking, set isRead false for admin review
     updateData.isRead = false;
 
     const updated = await prisma.booking.update({
@@ -194,7 +185,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ---------- DELETE booking (permanent) ----------
+// DELETE booking – customers cannot cancel confirmed bookings
 router.delete('/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -204,6 +195,10 @@ router.delete('/:id', async (req, res) => {
     if (!booking) return res.status(404).json({ error: 'Not found' });
 
     if (booking.userId === decoded.id && !['admin', 'staff'].includes(decoded.role)) {
+      // Block cancellation if already confirmed
+      if (booking.status === 'confirmed') {
+        return res.status(400).json({ error: 'Cannot cancel a confirmed booking' });
+      }
       const start = new Date(booking.startDate);
       const now = new Date();
       const diffHours = (start - now) / (1000 * 60 * 60);
@@ -225,7 +220,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// ---------- Admin cancel booking with message (soft cancel) ----------
+// ADMIN CANCEL with message (soft cancel)
 router.put('/:id/cancel', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -265,7 +260,7 @@ router.put('/:id/cancel', async (req, res) => {
   }
 });
 
-// ---------- Admin confirm booking ----------
+// ADMIN CONFIRM booking
 router.put('/:id/confirm', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -278,7 +273,10 @@ router.put('/:id/confirm', async (req, res) => {
 
     const updated = await prisma.booking.update({
       where: { id: req.params.id },
-      data: { status: 'confirmed', confirmedAt: new Date() },
+      data: {
+        status: 'confirmed',
+        confirmedAt: new Date(),
+      },
     });
 
     try {
@@ -301,7 +299,7 @@ router.put('/:id/confirm', async (req, res) => {
   }
 });
 
-// ---------- Toggle read status ----------
+// TOGGLE READ STATUS (admin/staff)
 router.put('/:id/mark-read', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -336,7 +334,7 @@ router.put('/:id/mark-read', async (req, res) => {
   }
 });
 
-// ---------- Get audit logs for a booking ----------
+// GET audit logs for a booking
 router.get('/:id/audit-logs', async (req, res) => {
   try {
     const logs = await prisma.auditLog.findMany({
@@ -347,84 +345,6 @@ router.get('/:id/audit-logs', async (req, res) => {
   } catch (error) {
     console.error('Get audit logs error:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-// ---------- Payment processing endpoint ----------
-router.post('/process', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const { bookingId, paymentMethod, cardNumber, cardExpiry, cardCvv, cardHolder } = req.body;
-    if (!bookingId || !paymentMethod) {
-      return res.status(400).json({ error: 'Missing bookingId or paymentMethod' });
-    }
-
-    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
-    if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role))
-      return res.status(403).json({ error: 'Forbidden' });
-    if (booking.paymentStatus === 'paid')
-      return res.status(400).json({ error: 'Already paid' });
-
-    let transactionId;
-    let updatedBooking;
-
-    if (paymentMethod === 'paypal') {
-      transactionId = 'PAYPAL_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-      updatedBooking = await prisma.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: 'confirmed',
-          paymentStatus: 'paid',
-          paymentMethod: 'paypal',
-          confirmedAt: new Date(),
-          transactionId,
-        },
-      });
-      return res.json({ success: true, transactionId, booking: updatedBooking });
-    }
-
-    if (!cardNumber || !cardExpiry || !cardCvv || !cardHolder) {
-      return res.status(400).json({ error: 'Missing card details' });
-    }
-    const rawCardNumber = cardNumber.replace(/\s/g, '');
-    if (rawCardNumber.length < 15 || rawCardNumber.length > 19) {
-      return res.status(400).json({ error: 'Invalid card number' });
-    }
-    if (!cardExpiry.match(/^\d{2}\/\d{2}$/)) {
-      return res.status(400).json({ error: 'Expiry must be MM/YY' });
-    }
-    if (!cardCvv.match(/^\d{3,4}$/)) {
-      return res.status(400).json({ error: 'CVV must be 3 or 4 digits' });
-    }
-    if (!cardHolder.trim()) {
-      return res.status(400).json({ error: 'Cardholder name is required' });
-    }
-
-    transactionId = 'TXN_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-    const lastFour = rawCardNumber.slice(-4);
-    const cardType = detectCardType(rawCardNumber);
-
-    updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'confirmed',
-        paymentStatus: 'paid',
-        cardLastFour: lastFour,
-        cardType,
-        paymentMethod: 'card',
-        confirmedAt: new Date(),
-        transactionId,
-      },
-    });
-
-    res.json({ success: true, transactionId, booking: updatedBooking });
-  } catch (error) {
-    console.error('Payment error:', error);
-    res.status(500).json({ error: 'Payment failed' });
   }
 });
 

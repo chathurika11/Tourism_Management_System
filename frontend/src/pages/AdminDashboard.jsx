@@ -8,7 +8,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import API from '../services/api';
-import Footer from '../components/Footer'; // 👈 import Footer
 
 const AdminDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -68,7 +67,6 @@ const AdminDashboard = () => {
       <div className="flex flex-1">
         {/* Sidebar */}
         <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-gradient-to-b from-primary to-secondary text-white transition-all duration-300 fixed h-full z-20 shadow-2xl flex flex-col`}>
-          {/* ... sidebar content (unchanged) ... */}
           <div className="p-4 flex justify-between items-center border-b border-white/20">
             <div className={`${!isSidebarOpen && 'hidden'}`}>
               <h1 className="font-playfair text-xl font-bold tracking-wide">SerendiGo</h1>
@@ -123,7 +121,7 @@ const AdminDashboard = () => {
           </div>
         </aside>
 
-        {/* Main Content */}
+        {/* Main Content – no Footer here anymore */}
         <main className={`${isSidebarOpen ? 'ml-64' : 'ml-20'} flex-1 transition-all duration-300 flex flex-col min-h-screen`}>
           <div className="bg-white shadow-sm sticky top-0 z-10 px-6 py-4 border-b border-gray-200">
             <h1 className="text-xl font-semibold text-primary">
@@ -173,8 +171,6 @@ const AdminDashboard = () => {
             )}
             <Outlet />
           </div>
-          {/* 👇 Footer appears at the bottom of admin pages */}
-          <Footer />
         </main>
       </div>
 

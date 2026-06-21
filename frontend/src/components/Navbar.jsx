@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare, Handshake } from 'lucide-react';
+import { Menu, X, Home, Info, Calendar, Hotel, Car, Users, MapPin, LogOut, Shield, User, MessageSquare, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -11,9 +11,7 @@ const Navbar = () => {
   const isAdmin = user?.role === 'admin' || user?.role === 'staff';
   const dashboardPath = user?.role === 'admin' || user?.role === 'staff' ? '/admin/dashboard' : '/customer/dashboard';
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
   const handleLogout = () => {
     logout();
@@ -27,11 +25,10 @@ const Navbar = () => {
     setIsOpen(false);
   };
 
-  const getActiveClass = (path) => {
-    return location.pathname === path
+  const getActiveClass = (path) =>
+    location.pathname === path
       ? 'text-cta font-semibold border-b-2 border-cta pb-1'
       : 'hover:text-cta';
-  };
 
   const publicLinks = [
     { path: '/', name: 'Home', icon: Home },
@@ -41,7 +38,7 @@ const Navbar = () => {
     { path: '/vehicles', name: 'Vehicles', icon: Car },
     { path: '/guides', name: 'Guides', icon: Users },
     { path: '/plan-tour', name: 'Plan Tour', icon: MapPin },
-    { path: '/partner-register', name: 'Partner', icon: Handshake },
+    { path: '/contact', name: 'Contact Us', icon: Mail }, // changed
   ];
 
   return (
@@ -55,7 +52,6 @@ const Navbar = () => {
             SerendiGo
           </button>
 
-          {/* Desktop Menu */}
           <div className="hidden md:flex space-x-6">
             {!isAdmin &&
               publicLinks.map(link => (
@@ -117,13 +113,11 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* Mobile menu button */}
           <button className="md:hidden" onClick={() => setIsOpen(!isOpen)}>
             {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {isOpen && (
           <div className="md:hidden py-4 space-y-2">
             {!isAdmin &&

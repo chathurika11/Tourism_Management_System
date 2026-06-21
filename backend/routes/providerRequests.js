@@ -7,22 +7,7 @@ const { logAudit } = require('../services/auditLog');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-const adminOrStaff = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!['admin', 'staff'].includes(decoded.role)) {
-      return res.status(403).json({ error: 'Admin or staff only' });
-    }
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-};
-
+// ---- helper functions ----
 const toList = (value) => {
   if (!value) return [];
   return value
@@ -84,6 +69,7 @@ const buildRequestData = (body, imageUrls) => {
     };
   }
 
+  // vehicle
   return {
     ...base,
     data: {
@@ -107,74 +93,23 @@ const buildRequestData = (body, imageUrls) => {
   };
 };
 
-const createEntityFromRequest = async (request) => {
-  const image = request.images?.[0] || '';
-  const data = request.data || {};
-
-  if (request.providerType === 'guide') {
-    return prisma.guide.create({
-      data: {
-        name: data.name,
-        specialty: data.specialty,
-        district: data.district,
-        location: data.location || '',
-        language: data.language || '',
-        experience: data.experience || '',
-        certification: data.certification || '',
-        pricePerDay: parseNumber(data.pricePerDay),
-        popular: false,
-        description: data.description || '',
-        image,
-        rating: 0,
-        reviews: 0,
-      },
-    });
-  }
-
-  if (request.providerType === 'hotel') {
-    return prisma.hotel.create({
-      data: {
-        name: data.name,
-        location: data.location,
-        district: data.district,
-        pricePerNight: parseNumber(data.pricePerNight),
-        amenities: Array.isArray(data.amenities) ? data.amenities : [],
-        image,
-        checkIn: data.checkIn || '2:00 PM',
-        checkOut: data.checkOut || '12:00 PM',
-        freeCancellationHours: parseInt(data.freeCancellationHours, 10) || 48,
-        breakfastIncluded: Boolean(data.breakfastIncluded),
-        rating: 0,
-      },
-    });
-  }
-
-  return prisma.vehicle.create({
-    data: {
-      type: data.type,
-      model: data.model,
-      pricePerDay: parseNumber(data.pricePerDay),
-      passengers: parseInt(data.passengers, 10) || 1,
-      fuelType: data.fuelType || '',
-      fuelEfficiency: data.fuelEfficiency || '',
-      year: data.year || '',
-      insuranceIncluded: data.insuranceIncluded !== false,
-      supportHours: data.supportHours || '24/7',
-      pickupLocations: Array.isArray(data.pickupLocations) ? data.pickupLocations : [],
-      includedFeatures: Array.isArray(data.includedFeatures) ? data.includedFeatures : [],
-      securityDeposit: parseNumber(data.securityDeposit),
-      depositRefundable: data.depositRefundable !== false,
-      location: data.location,
-      district: data.district,
-      status: 'available',
-      image,
-      rating: 0,
-    },
-  });
+// markup rates
+const MARKUP = {
+  guide: 1.25,   // 25%
+  hotel: 1.25,   // 25%
+  vehicle: 1.20, // 20%
 };
 
+// ---- ROUTES ----
+
+// POST – submit a provider request
 router.post('/', upload.array('images', 5), async (req, res) => {
   try {
+    if (!prisma.providerRequest) {
+      console.error('❌ ProviderRequest model missing. Run `npx prisma generate`.');
+      return res.status(500).json({ error: 'Server configuration error.' });
+    }
+
     if (!['guide', 'hotel', 'vehicle'].includes(req.body.providerType)) {
       return res.status(400).json({ error: 'Provider type must be guide, hotel, or vehicle' });
     }
@@ -191,11 +126,12 @@ router.post('/', upload.array('images', 5), async (req, res) => {
 
     res.status(201).json(request);
   } catch (error) {
-    console.error(error);
+    console.error('❌ Provider request creation error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// GET /mine – fetch requests by email or IDs
 router.get('/mine', async (req, res) => {
   try {
     const ids = req.query.ids ? req.query.ids.split(',').map((id) => id.trim()).filter(Boolean) : [];
@@ -221,6 +157,7 @@ router.get('/mine', async (req, res) => {
   }
 });
 
+// GET / – admin/staff list (with filters)
 router.get('/', adminOrStaff, async (req, res) => {
   try {
     const { status, providerType } = req.query;
@@ -239,36 +176,65 @@ router.get('/', adminOrStaff, async (req, res) => {
   }
 });
 
+// PUT /:id/approve – returns prefill data (does NOT auto-create)
 router.put('/:id/approve', adminOrStaff, async (req, res) => {
   try {
     const request = await prisma.providerRequest.findUnique({ where: { id: req.params.id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending') return res.status(400).json({ error: 'Request already reviewed' });
 
-    const entity = await createEntityFromRequest(request);
+    const data = request.data || {};
+    const markup = MARKUP[request.providerType] || 1.0;
+    const image = request.images?.[0] || '';
+
+    // Build prefill object with marked-up price
+    const prefill = { ...data, image };
+
+    if (request.providerType === 'guide') {
+      prefill.pricePerDay = parseNumber(data.pricePerDay || data.price) * markup;
+      prefill.name = data.name || request.businessName || request.requesterName;
+      prefill.district = data.district || request.district;
+      prefill.location = data.location || request.location;
+    } else if (request.providerType === 'hotel') {
+      prefill.pricePerNight = parseNumber(data.pricePerNight || data.price) * markup;
+      prefill.name = data.name || request.businessName || request.requesterName;
+      prefill.district = data.district || request.district;
+      prefill.location = data.location || request.location;
+    } else if (request.providerType === 'vehicle') {
+      prefill.pricePerDay = parseNumber(data.pricePerDay || data.price) * markup;
+      prefill.model = data.model || request.businessName || request.requesterName;
+      prefill.district = data.district || request.district;
+      prefill.location = data.location || request.location;
+    }
+
+    // Update request status to approved (but don't create entity yet)
     const updated = await prisma.providerRequest.update({
       where: { id: request.id },
       data: {
         status: 'approved',
-        createdEntityId: entity.id,
         reviewedBy: req.user.id,
         reviewedAt: new Date(),
       },
     });
 
     await logAudit(req, 'PROVIDER_REQUEST_APPROVED', 'ProviderRequest', request.id, {
-      description: `Approved ${request.providerType} request`,
+      description: `Approved ${request.providerType} request – admin can now add it manually.`,
       providerType: request.providerType,
-      createdEntityId: entity.id,
     });
 
-    res.json({ request: updated, entity });
+    res.json({
+      success: true,
+      request: updated,
+      prefill,
+      providerType: request.providerType,
+    });
   } catch (error) {
-    console.error(error);
+    console.error('❌ Approval error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// PUT /:id/reject – admin/staff reject
 router.put('/:id/reject', adminOrStaff, async (req, res) => {
   try {
     const request = await prisma.providerRequest.findUnique({ where: { id: req.params.id } });
@@ -295,5 +261,22 @@ router.put('/:id/reject', adminOrStaff, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ---- Middleware ----
+function adminOrStaff(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!['admin', 'staff'].includes(decoded.role)) {
+      return res.status(403).json({ error: 'Admin or staff only' });
+    }
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
 module.exports = router;

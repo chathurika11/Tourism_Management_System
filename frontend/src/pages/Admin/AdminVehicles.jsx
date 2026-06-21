@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import API from '../../services/api';
-
-const getImageUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-  return `http://localhost:5000/${cleanPath}`;
-};
+import API, { getImageUrl } from '../../services/api';
 
 const AdminVehicles = () => {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const prefill = location.state?.prefill || {};
+
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
+  const [preserveImage, setPreserveImage] = useState(false);
   const [formData, setFormData] = useState({
     type: '',
     model: '',
@@ -37,9 +35,39 @@ const AdminVehicles = () => {
     status: 'available',
   });
 
+  // Prefill from provider request
+  useEffect(() => {
+    if (prefill && Object.keys(prefill).length > 0) {
+      setFormData({
+        type: prefill.type || '',
+        model: prefill.model || '',
+        pricePerDay: prefill.pricePerDay || '',
+        passengers: prefill.passengers || '',
+        fuelType: prefill.fuelType || '',
+        fuelEfficiency: prefill.fuelEfficiency || '',
+        year: prefill.year || '',
+        insuranceIncluded: prefill.insuranceIncluded !== undefined ? prefill.insuranceIncluded : true,
+        supportHours: prefill.supportHours || '24/7',
+        pickupLocations: (prefill.pickupLocations || []).join(', '),
+        includedFeatures: (prefill.includedFeatures || []).join(', '),
+        securityDeposit: prefill.securityDeposit || '',
+        depositRefundable: prefill.depositRefundable !== undefined ? prefill.depositRefundable : true,
+        location: prefill.location || '',
+        district: prefill.district || '',
+        status: prefill.status || 'available',
+      });
+      if (prefill.image) {
+        setImagePreview(prefill.image);
+        setPreserveImage(true);
+      }
+      setShowModal(true);
+      toast('Prefilled from provider request – review and save');
+    }
+  }, [prefill]);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['vehicles-admin', page],
-    queryFn: () => API.get(`/vehicles?page=${page}&limit=10`).then(res => res.data),
+    queryFn: () => API.get(`/vehicles?page=${page}&limit=10`).then((res) => res.data),
     keepPreviousData: true,
   });
   const vehicles = data?.data || [];
@@ -58,7 +86,8 @@ const AdminVehicles = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, fd }) => API.put(`/vehicles/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    mutationFn: ({ id, fd }) =>
+      API.put(`/vehicles/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
     onSuccess: () => {
       queryClient.invalidateQueries(['vehicles-admin']);
       queryClient.invalidateQueries(['vehicles']);
@@ -89,6 +118,7 @@ const AdminVehicles = () => {
     if (file) {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
+      setPreserveImage(false);
     }
   };
 
@@ -111,7 +141,13 @@ const AdminVehicles = () => {
     fd.append('location', formData.location);
     fd.append('district', formData.district);
     fd.append('status', formData.status);
-    if (imageFile) fd.append('image', imageFile);
+
+    if (imageFile && imageFile !== 'preserve') {
+      fd.append('image', imageFile);
+    } else if (preserveImage && prefill.image) {
+      fd.append('imageUrl', prefill.image);
+    }
+
     if (editingVehicle) updateMutation.mutate({ id: editingVehicle.id, fd });
     else createMutation.mutate(fd);
   };
@@ -143,6 +179,8 @@ const AdminVehicles = () => {
       status: vehicle.status,
     });
     setImagePreview(getImageUrl(vehicle.image));
+    setImageFile(null);
+    setPreserveImage(false);
     setShowModal(true);
   };
 
@@ -151,6 +189,7 @@ const AdminVehicles = () => {
     setEditingVehicle(null);
     setImagePreview(null);
     setImageFile(null);
+    setPreserveImage(false);
     setFormData({
       type: '',
       model: '',
@@ -186,14 +225,16 @@ const AdminVehicles = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {vehicles.map(vehicle => (
+        {vehicles.map((vehicle) => (
           <div key={vehicle.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300">
             <img
               src={getImageUrl(vehicle.image)}
               alt={vehicle.model}
               className="w-full h-40 object-cover"
               loading="lazy"
-              onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
+              onError={(e) => {
+                e.target.src = 'https://via.placeholder.com/400x300?text=No+Image';
+              }}
             />
             <div className="p-4">
               <div className="flex justify-between items-start">
@@ -225,11 +266,21 @@ const AdminVehicles = () => {
 
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-8">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline px-4 py-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="btn-outline px-4 py-2"
+          >
             Previous
           </button>
-          <span className="text-gray-600">Page {page} of {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-outline px-4 py-2">
+          <span className="text-gray-600">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="btn-outline px-4 py-2"
+          >
             Next
           </button>
         </div>
@@ -424,11 +475,16 @@ const AdminVehicles = () => {
                     <span className="text-sm text-gray-500 mt-1">Click to upload or drag and drop</span>
                   </label>
                   {imagePreview && (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="mt-3 w-32 h-32 object-cover rounded-lg mx-auto"
-                    />
+                    <div className="mt-3 relative">
+                      <img
+                        src={preserveImage ? getImageUrl(imagePreview) : (imageFile ? URL.createObjectURL(imageFile) : '')}
+                        alt="Preview"
+                        className="w-32 h-32 object-cover rounded-lg mx-auto"
+                      />
+                      {preserveImage && (
+                        <span className="text-xs text-green-600 block mt-1">(Image from provider request)</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -444,7 +500,9 @@ const AdminVehicles = () => {
                   disabled={createMutation.isPending || updateMutation.isPending}
                   className="btn-primary flex-1 py-2 flex items-center justify-center gap-2"
                 >
-                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={18} className="animate-spin" />}
+                  {(createMutation.isPending || updateMutation.isPending) && (
+                    <Loader2 size={18} className="animate-spin" />
+                  )}
                   {editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
                 </button>
               </div>

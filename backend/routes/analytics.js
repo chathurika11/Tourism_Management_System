@@ -1,85 +1,93 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
-
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// ---- Helper functions ----
 const getCategory = (type) => {
   const lowerType = (type || '').toLowerCase();
-
   if (lowerType.includes('hotel')) return 'hotel';
   if (lowerType.includes('vehicle')) return 'vehicle';
   if (lowerType.includes('guide')) return 'guide';
   if (lowerType.includes('tour')) return 'tour';
   if (lowerType.includes('package')) return 'tour';
   if (lowerType.includes('custom')) return 'tour';
-
   return 'tour';
 };
 
+// Extract name from destination object with fallback
+const extractName = (dest, type) => {
+  if (!dest) return null;
+  if (type === 'hotel') {
+    return dest.hotelName || dest.hotel?.name || dest.selectedHotel?.name ||
+           dest.hotel?.hotelName || dest.selectedHotel?.hotelName ||
+           dest.hotelTitle || dest.hotelId;
+  }
+  if (type === 'vehicle') {
+    return dest.vehicle?.model || dest.vehicle?.type || dest.vehicleName ||
+           dest.vehicle?.name || dest.vehicle?.vehicleName ||
+           dest.selectedVehicle?.name || dest.selectedVehicle?.vehicleName ||
+           dest.vehicleId;
+  }
+  if (type === 'guide') {
+    return dest.guideName || dest.guide?.name || dest.selectedGuide?.name ||
+           dest.guide?.fullName || dest.selectedGuide?.fullName ||
+           dest.guideId;
+  }
+  return null;
+};
+
+// Check if a booking includes a service (for splitting commission)
+const hasService = (booking, service) => {
+  if (!booking.destinations) return false;
+  const text = JSON.stringify(booking.destinations).toLowerCase();
+  if (service === 'hotel') {
+    return text.includes('hotel') || text.includes('hotelid') || text.includes('hotelname');
+  }
+  if (service === 'vehicle') {
+    return text.includes('vehicle') || text.includes('vehicleid') || text.includes('vehiclename') || text.includes('model');
+  }
+  if (service === 'guide') {
+    return text.includes('guide') || text.includes('guideid') || text.includes('guidename');
+  }
+  return false;
+};
+
+// Get package services (hotelId, vehicleId, guideId) from package name
+const getPackageServices = async (booking) => {
+  try {
+    if (!booking.packageName) return null;
+    return await prisma.tourPackage.findFirst({
+      where: { name: { equals: booking.packageName, mode: 'insensitive' } },
+      select: { hotelId: true, vehicleId: true, guideId: true }
+    });
+  } catch {
+    return null;
+  }
+};
+
+// ---- Middleware ----
 const checkAdmin = (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-
   if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-  if (decoded.role !== 'admin') {
-    res.status(403).json({ error: 'Admin only' });
-    return null;
-  }
-
-  return decoded;
-};
-
-const hasService = (booking, service) => {
-  if (!booking.destinations) return false;
-
-  const text = JSON.stringify(booking.destinations).toLowerCase();
-
-  if (service === 'hotel') {
-    return text.includes('hotel') || text.includes('hotelid') || text.includes('selecthotel');
-  }
-
-  if (service === 'vehicle') {
-    return text.includes('vehicle') || text.includes('vehicleid') || text.includes('selectvehicle');
-  }
-
-  if (service === 'guide') {
-    return text.includes('guide') || text.includes('guideid') || text.includes('selectguide');
-  }
-
-  return false;
-};
-
-const getPackageServices = async (booking) => {
   try {
-    if (!booking.packageName) return null;
-
-    return await prisma.tourPackage.findFirst({
-      where: {
-        name: {
-          equals: booking.packageName,
-          mode: 'insensitive'
-        }
-      },
-      select: {
-        hotelId: true,
-        vehicleId: true,
-        guideId: true
-      }
-    });
-  } catch (err) {
-    console.log('Package lookup failed:', err.message);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      res.status(403).json({ error: 'Admin only' });
+      return null;
+    }
+    return decoded;
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
     return null;
   }
 };
 
-// ---------- Admin Reports ----------
+// ---- GET /reports ----
 router.get('/reports', async (req, res) => {
   try {
     const admin = checkAdmin(req, res);
@@ -89,40 +97,19 @@ router.get('/reports', async (req, res) => {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
-   const bookings = await prisma.booking.findMany({
-  where: {
-    status: 'confirmed',
-    bookingDate: {
-      gte: startOfYear,
-      lte: endOfYear
-    }
-  }
-});
-    const totalRevenue = bookings.reduce(
-      (sum, b) => sum + (b.totalAmount || 0),
-      0
-    );
+    const bookings = await prisma.booking.findMany({
+      where: {
+        status: 'confirmed',
+        bookingDate: { gte: startOfYear, lte: endOfYear }
+      }
+    });
 
-    const typeCounts = {
-      hotel: 0,
-      vehicle: 0,
-      guide: 0,
-      tour: 0
-    };
-
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
+    const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const typeCounts = { hotel: 0, vehicle: 0, guide: 0, tour: 0 };
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const monthlyByType = {};
-    months.forEach((m) => {
-      monthlyByType[m] = {
-        hotel: 0,
-        vehicle: 0,
-        guide: 0,
-        tour: 0
-      };
+    months.forEach(m => {
+      monthlyByType[m] = { hotel: 0, vehicle: 0, guide: 0, tour: 0 };
     });
 
     for (const b of bookings) {
@@ -134,30 +121,15 @@ router.get('/reports', async (req, res) => {
         monthlyByType[month].tour++;
 
         const pkg = await getPackageServices(b);
-
         const hasHotel = pkg?.hotelId || hasService(b, 'hotel');
         const hasVehicle = pkg?.vehicleId || hasService(b, 'vehicle');
         const hasGuide = pkg?.guideId || hasService(b, 'guide');
 
-        if (hasHotel) {
-          typeCounts.hotel++;
-          monthlyByType[month].hotel++;
-        }
-
-        if (hasVehicle) {
-          typeCounts.vehicle++;
-          monthlyByType[month].vehicle++;
-        }
-
-        if (hasGuide) {
-          typeCounts.guide++;
-          monthlyByType[month].guide++;
-        }
+        if (hasHotel) { typeCounts.hotel++; monthlyByType[month].hotel++; }
+        if (hasVehicle) { typeCounts.vehicle++; monthlyByType[month].vehicle++; }
+        if (hasGuide) { typeCounts.guide++; monthlyByType[month].guide++; }
       } else {
-        if (typeCounts[category] !== undefined) {
-          typeCounts[category]++;
-        }
-
+        if (typeCounts[category] !== undefined) typeCounts[category]++;
         if (monthlyByType[month] && monthlyByType[month][category] !== undefined) {
           monthlyByType[month][category]++;
         }
@@ -165,33 +137,22 @@ router.get('/reports', async (req, res) => {
     }
 
     const total = bookings.length;
-    const serviceTotal =
-      typeCounts.hotel + typeCounts.vehicle + typeCounts.guide + typeCounts.tour;
-
-    const safeTotal = serviceTotal || 1;
-
+    const serviceTotal = typeCounts.hotel + typeCounts.vehicle + typeCounts.guide + typeCounts.tour || 1;
     const typePercentages = {
-      hotel: parseFloat(((typeCounts.hotel / safeTotal) * 100).toFixed(1)),
-      vehicle: parseFloat(((typeCounts.vehicle / safeTotal) * 100).toFixed(1)),
-      guide: parseFloat(((typeCounts.guide / safeTotal) * 100).toFixed(1)),
-      tour: parseFloat(((typeCounts.tour / safeTotal) * 100).toFixed(1))
+      hotel: parseFloat(((typeCounts.hotel / serviceTotal) * 100).toFixed(1)),
+      vehicle: parseFloat(((typeCounts.vehicle / serviceTotal) * 100).toFixed(1)),
+      guide: parseFloat(((typeCounts.guide / serviceTotal) * 100).toFixed(1)),
+      tour: parseFloat(((typeCounts.tour / serviceTotal) * 100).toFixed(1))
     };
 
-    res.json({
-      typeCounts,
-      typePercentages,
-      monthlyByType,
-      total,
-      totalRevenue,
-      year
-    });
+    res.json({ typeCounts, typePercentages, monthlyByType, total, totalRevenue, year });
   } catch (err) {
     console.error('Reports error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ---------- Admin Commission Summary ----------
+// ---- GET /commission-summary ----
 router.get('/commission-summary', async (req, res) => {
   try {
     const admin = checkAdmin(req, res);
@@ -201,32 +162,19 @@ router.get('/commission-summary', async (req, res) => {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
-   const bookings = await prisma.booking.findMany({
-  where: {
-    status: 'confirmed',
-    bookingDate: {
-      gte: startOfYear,
-      lte: endOfYear
-    }
-  }
-});
+    const bookings = await prisma.booking.findMany({
+      where: {
+        status: 'confirmed',
+        bookingDate: { gte: startOfYear, lte: endOfYear }
+      }
+    });
 
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const monthlyCommission = {};
     const monthlyBreakdown = {};
-
-    months.forEach((m) => {
+    months.forEach(m => {
       monthlyCommission[m] = 0;
-      monthlyBreakdown[m] = {
-        hotel: 0,
-        guide: 0,
-        vehicle: 0,
-        tour: 0
-      };
+      monthlyBreakdown[m] = { hotel: 0, guide: 0, vehicle: 0, tour: 0 };
     });
 
     let totalHotelCommission = 0;
@@ -241,7 +189,6 @@ router.get('/commission-summary', async (req, res) => {
 
       if (category === 'tour') {
         const pkg = await getPackageServices(b);
-
         const hasHotel = pkg?.hotelId || hasService(b, 'hotel');
         const hasVehicle = pkg?.vehicleId || hasService(b, 'vehicle');
         const hasGuide = pkg?.guideId || hasService(b, 'guide');
@@ -264,14 +211,12 @@ router.get('/commission-summary', async (req, res) => {
           monthlyBreakdown[month].hotel += hotelCommission;
           monthlyCommission[month] += hotelCommission;
         }
-
         if (hasVehicle) {
           const vehicleCommission = partAmount * 0.15;
           totalVehicleCommission += vehicleCommission;
           monthlyBreakdown[month].vehicle += vehicleCommission;
           monthlyCommission[month] += vehicleCommission;
         }
-
         if (hasGuide) {
           const guideCommission = partAmount * 0.25;
           totalGuideCommission += guideCommission;
@@ -280,7 +225,6 @@ router.get('/commission-summary', async (req, res) => {
         }
       } else {
         let commission = 0;
-
         if (category === 'hotel') {
           commission = amount * 0.25;
           totalHotelCommission += commission;
@@ -294,16 +238,11 @@ router.get('/commission-summary', async (req, res) => {
           totalVehicleCommission += commission;
           monthlyBreakdown[month].vehicle += commission;
         }
-
         monthlyCommission[month] += commission;
       }
     }
 
-    const totalCommission =
-      totalHotelCommission +
-      totalGuideCommission +
-      totalVehicleCommission +
-      totalTourCommission;
+    const totalCommission = totalHotelCommission + totalGuideCommission + totalVehicleCommission + totalTourCommission;
 
     res.json({
       totalCommission: Math.round(totalCommission),
@@ -333,7 +272,7 @@ router.get('/commission-summary', async (req, res) => {
   }
 });
 
-// ---------- Most Booked Items + Item Commission ----------
+// ---- GET /most-booked-items (item-level commission) ----
 router.get('/most-booked-items', async (req, res) => {
   try {
     const year = parseInt(req.query.year, 10) || new Date().getFullYear();
@@ -341,94 +280,126 @@ router.get('/most-booked-items', async (req, res) => {
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
 
     const bookings = await prisma.booking.findMany({
-  where: {
-    status: 'confirmed',
-    bookingDate: {
-      gte: startOfYear,
-      lte: endOfYear
-    }
-  }
-});
+      where: {
+        status: 'confirmed',
+        bookingDate: { gte: startOfYear, lte: endOfYear }
+      }
+    });
 
-    const hotelCounts = {};
-    const vehicleCounts = {};
-    const guideCounts = {};
-    const packageCounts = {};
-
+    // Aggregators for item-level commission
     const hotelCommission = {};
     const vehicleCommission = {};
     const guideCommission = {};
     const packageCommission = {};
 
+    // Also track counts for "Most Booked" charts
+    const hotelCounts = {};
+    const vehicleCounts = {};
+    const guideCounts = {};
+    const packageCounts = {};
+
     const addCount = (obj, name) => {
       if (!name) return;
-      obj[String(name)] = (obj[String(name)] || 0) + 1;
+      const key = String(name).trim();
+      obj[key] = (obj[key] || 0) + 1;
     };
 
     const addMoney = (obj, name, amount) => {
       if (!name) return;
-      obj[String(name)] = (obj[String(name)] || 0) + amount;
+      const key = String(name).trim();
+      obj[key] = (obj[key] || 0) + amount;
+    };
+
+    // Helper to extract name from a destination
+    const getItemName = (dest, type) => {
+      if (!dest) return null;
+      if (type === 'hotel') {
+        return dest.hotelName || dest.hotel?.name || dest.selectedHotel?.name ||
+               dest.hotel?.hotelName || dest.selectedHotel?.hotelName ||
+               dest.hotelTitle || dest.hotelId;
+      }
+      if (type === 'vehicle') {
+        return dest.vehicle?.model || dest.vehicle?.type || dest.vehicleName ||
+               dest.vehicle?.name || dest.vehicle?.vehicleName ||
+               dest.selectedVehicle?.name || dest.selectedVehicle?.vehicleName ||
+               dest.vehicleId;
+      }
+      if (type === 'guide') {
+        return dest.guideName || dest.guide?.name || dest.selectedGuide?.name ||
+               dest.guide?.fullName || dest.selectedGuide?.fullName ||
+               dest.guideId;
+      }
+      return null;
     };
 
     for (const b of bookings) {
       const amount = b.totalAmount || 0;
-      const destinations = b.destinations;
-      const data = destinations
-        ? (Array.isArray(destinations) ? destinations : [destinations])
-        : [];
 
+      // ---- Package bookings ----
       if (b.packageName) {
-        addCount(packageCounts, b.packageName);
-        addMoney(packageCommission, b.packageName, amount * 0.25);
+        const pkgName = b.packageName.trim();
+        addCount(packageCounts, pkgName);
+        addMoney(packageCommission, pkgName, amount * 0.25);
       }
 
-      for (const d of data) {
-        const hotelName =
-          d.hotelName ||
-          d.hotel?.name ||
-          d.selectedHotel?.name ||
-          d.hotel?.hotelName ||
-          d.selectedHotel?.hotelName ||
-          d.hotelTitle ||
-          d.hotelId;
+      // ---- Custom tour destinations ----
+      const destinations = b.destinations;
+      if (destinations) {
+        const data = Array.isArray(destinations) ? destinations : [destinations];
+        for (const d of data) {
+          if (!d) continue;
 
-        const vehicleName =
-          d.vehicle?.model ||
-          d.vehicle?.type ||
-          d.vehicleName ||
-          d.vehicle?.name ||
-          d.vehicle?.vehicleName ||
-          d.selectedVehicle?.name ||
-          d.selectedVehicle?.vehicleName ||
-          d.vehicleId;
+          // Determine which services are present in this destination
+          const hasHotel = d.hotel || d.hotelId || d.hotelName || d.selectedHotel;
+          const hasVehicle = d.vehicle || d.vehicleId || d.vehicleName || d.selectedVehicle;
+          const hasGuide = d.guide || d.guideId || d.guideName || d.selectedGuide;
 
-        const guideName =
-          d.guideName ||
-          d.guide?.name ||
-          d.selectedGuide?.name ||
-          d.guide?.fullName ||
-          d.selectedGuide?.fullName ||
-          d.guideId;
+          // Count services for the "Most Booked" charts
+          const hotelName = getItemName(d, 'hotel');
+          const vehicleName = getItemName(d, 'vehicle');
+          const guideName = getItemName(d, 'guide');
 
-        addCount(hotelCounts, hotelName);
-        addCount(vehicleCounts, vehicleName);
-        addCount(guideCounts, guideName);
+          addCount(hotelCounts, hotelName);
+          addCount(vehicleCounts, vehicleName);
+          addCount(guideCounts, guideName);
 
-        addMoney(hotelCommission, hotelName, amount * 0.25);
-        addMoney(vehicleCommission, vehicleName, amount * 0.15);
-        addMoney(guideCommission, guideName, amount * 0.25);
+          // For commission, split the booking amount among the services present
+          let parts = 1; // at least the "tour" itself
+          if (hasHotel) parts++;
+          if (hasVehicle) parts++;
+          if (hasGuide) parts++;
+
+          const partAmount = amount / parts;
+
+          // Always add tour commission (25% of part)
+          // But we don't track per-item tour commission here; we already track package commissions.
+          // For custom tours, we attribute commission to the individual services.
+
+          if (hasHotel && hotelName) {
+            addMoney(hotelCommission, hotelName, partAmount * 0.25);
+          }
+          if (hasVehicle && vehicleName) {
+            addMoney(vehicleCommission, vehicleName, partAmount * 0.15);
+          }
+          if (hasGuide && guideName) {
+            addMoney(guideCommission, guideName, partAmount * 0.25);
+          }
+        }
       }
     }
 
+    // Format helper
     const format = (obj) =>
       Object.entries(obj)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count);
+        .map(([name, value]) => ({ name, count: value }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
 
     const formatMoney = (obj) =>
       Object.entries(obj)
         .map(([name, amount]) => ({ name, amount: Math.round(amount) }))
-        .sort((a, b) => b.amount - a.amount);
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 10);
 
     res.json({
       hotels: format(hotelCounts),

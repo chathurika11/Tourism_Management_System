@@ -9,13 +9,12 @@ const AdminBookings = () => {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRead, setFilterRead] = useState('all'); // 'all', 'read', 'unread'
+  const [filterRead, setFilterRead] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
 
-  // Fetch bookings (no relation)
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['bookings-admin', page, limit],
     queryFn: () => API.get(`/bookings?page=${page}&limit=${limit}`).then(res => res.data),
@@ -27,24 +26,20 @@ const AdminBookings = () => {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / limit);
 
-  // Client‑side filters (read/unread, search)
   const filteredBookings = bookings.filter(b => {
-    // Read filter
     if (filterRead === 'read' && !b.isRead) return false;
     if (filterRead === 'unread' && b.isRead) return false;
-    // Search filter
+    const term = searchTerm.toLowerCase();
     const customerName = b.user?.name || b.customerName || '';
     const email = b.user?.email || '';
     const type = b.type || '';
     const id = b.id || '';
-    const term = searchTerm.toLowerCase();
     return customerName.toLowerCase().includes(term) ||
            email.toLowerCase().includes(term) ||
            type.toLowerCase().includes(term) ||
            id.toLowerCase().includes(term);
   });
 
-  // Mutations
   const confirmMutation = useMutation({
     mutationFn: ({ id }) => API.put(`/bookings/${id}/confirm`, {}),
     onSuccess: () => {
@@ -97,7 +92,6 @@ const AdminBookings = () => {
     }
   };
 
-  // Handlers
   const viewDetails = (booking) => {
     setSelectedBooking(booking);
     setEditData(booking);
@@ -141,7 +135,6 @@ const AdminBookings = () => {
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-primary">Manage Bookings</h1>
         <div className="flex flex-wrap gap-3">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -152,7 +145,6 @@ const AdminBookings = () => {
               className="input-field pl-10 w-48 md:w-64"
             />
           </div>
-          {/* Read/Unread Filter */}
           <div className="relative">
             <select
               value={filterRead}
@@ -233,13 +225,11 @@ const AdminBookings = () => {
                     <button onClick={() => markAsRead(booking)} className="text-indigo-600 hover:text-indigo-800" title={booking.isRead ? 'Mark unread' : 'Mark read'}>
                       {booking.isRead ? 'U' : 'R'}
                     </button>
-                    {/* Cancel (soft) only if not already cancelled */}
                     {booking.status !== 'cancelled' && (
                       <button onClick={() => cancelBookingWithReason(booking.id)} className="text-orange-600 hover:text-orange-800" title="Cancel with reason">
                         <Trash2 size={18} className="opacity-70" />
                       </button>
                     )}
-                    {/* Permanent Delete (always available for admin) */}
                     <button onClick={() => deleteBookingPermanent(booking.id)} className="text-red-600 hover:text-red-800" title="Permanently delete">
                       <X size={18} />
                     </button>
@@ -251,7 +241,6 @@ const AdminBookings = () => {
         </table>
       </div>
 
-      {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-6">
           <button
@@ -274,7 +263,6 @@ const AdminBookings = () => {
         </div>
       )}
 
-      {/* Details / Edit Modal */}
       {showModal && selectedBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">

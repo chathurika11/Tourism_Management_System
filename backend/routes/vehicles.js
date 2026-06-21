@@ -43,21 +43,27 @@ router.get('/', async (req, res) => {
 
     res.json({ data: vehicles, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
+    console.error('❌ GET /vehicles error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // GET single vehicle
 router.get('/:id', async (req, res) => {
-  const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
-  if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
-  res.json(vehicle);
+  try {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
+    if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+    res.json(vehicle);
+  } catch (error) {
+    console.error('❌ GET /vehicle/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// POST create vehicle (admin only)
+// POST create vehicle (admin only) – supports imageUrl fallback
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || '');
     const pickupLocations = req.body.pickupLocations ? req.body.pickupLocations.split(',').map(s => s.trim()) : [];
     const includedFeatures = req.body.includedFeatures ? req.body.includedFeatures.split(',').map(s => s.trim()) : [];
     const data = {
@@ -87,11 +93,12 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
     });
     res.status(201).json(vehicle);
   } catch (error) {
+    console.error('❌ POST /vehicles error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// PUT update vehicle (admin only)
+// PUT update vehicle (admin only) – supports imageUrl fallback
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const pickupLocations = req.body.pickupLocations ? req.body.pickupLocations.split(',').map(s => s.trim()) : [];
@@ -114,7 +121,11 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
       district: req.body.district,
       status: req.body.status || 'available',
     };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) {
+      data.image = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      data.image = req.body.imageUrl;
+    }
     const vehicle = await prisma.vehicle.update({ where: { id: req.params.id }, data });
     await logAudit(req, 'VEHICLE_UPDATED', 'Vehicle', vehicle.id, {
       description: `Updated ${vehicle.model} vehicle`,
@@ -122,19 +133,26 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     });
     res.json(vehicle);
   } catch (error) {
+    console.error('❌ PUT /vehicles/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // DELETE vehicle (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
-  const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
-  await prisma.vehicle.delete({ where: { id: req.params.id } });
-  await logAudit(req, 'VEHICLE_DELETED', 'Vehicle', req.params.id, {
-    description: `Deleted ${vehicle?.model || req.params.id} vehicle`,
-    name: vehicle?.model,
-  });
-  res.json({ message: 'Vehicle deleted' });
+  try {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
+    if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+    await prisma.vehicle.delete({ where: { id: req.params.id } });
+    await logAudit(req, 'VEHICLE_DELETED', 'Vehicle', req.params.id, {
+      description: `Deleted ${vehicle?.model || req.params.id} vehicle`,
+      name: vehicle?.model,
+    });
+    res.json({ message: 'Vehicle deleted successfully' });
+  } catch (error) {
+    console.error('❌ DELETE /vehicles/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

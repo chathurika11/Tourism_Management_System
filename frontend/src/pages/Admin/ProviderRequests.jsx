@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Clock, Eye, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import API, { getImageUrl } from '../../services/api';
 
 const statusClass = {
@@ -12,6 +13,7 @@ const statusClass = {
 
 const ProviderRequests = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [status, setStatus] = useState('pending');
   const [providerType, setProviderType] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -35,10 +37,24 @@ const ProviderRequests = () => {
 
   const approveMutation = useMutation({
     mutationFn: (id) => API.put(`/provider-requests/${id}/approve`),
-    onSuccess: () => {
-      toast.success('Request approved and published.');
+    onSuccess: (res) => {
+      const { providerType, prefill } = res.data;
+      toast.success('Request approved! Redirecting to add form...');
       setSelected(null);
       refresh();
+
+      // Redirect to the appropriate add page with prefill data
+      const pathMap = {
+        guide: '/admin/guides',
+        hotel: '/admin/hotels',
+        vehicle: '/admin/vehicles',
+      };
+      const path = pathMap[providerType];
+      if (path) {
+        navigate(path, { state: { prefill, providerRequestId: res.data.request.id } });
+      } else {
+        toast.error('Unknown provider type');
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to approve request'),
   });
@@ -198,7 +214,7 @@ const ProviderRequests = () => {
                       disabled={approveMutation.isPending || rejectMutation.isPending}
                       className="btn-primary flex-1 flex items-center justify-center gap-2"
                     >
-                      <Check size={18} /> Approve & Publish
+                      <Check size={18} /> Approve & Edit
                     </button>
                     <button
                       onClick={() => rejectMutation.mutate({ id: selected.id, reason: rejectionReason })}

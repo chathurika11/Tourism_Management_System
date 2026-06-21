@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Building2, Car, CheckCircle2, Clock, Search, Upload, UserRound, XCircle } from 'lucide-react';
+import { Building2, Car, CheckCircle2, Clock, Search, Upload, UserRound, XCircle, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API, { getImageUrl } from '../services/api';
 
@@ -8,7 +8,7 @@ const initialForm = {
   providerType: 'guide',
   requesterName: '',
   requesterEmail: '',
-  requesterPhone: '',
+  requesterPhone: '+94',
   businessName: '',
   district: '',
   location: '',
@@ -107,8 +107,22 @@ const PartnerRegister = () => {
     setImagePreviews(valid.map((file) => URL.createObjectURL(file)));
   };
 
+  const validateEmail = (email) => email.toLowerCase().endsWith('@gmail.com');
+  const validatePhone = (phone) => /^\+94[0-9]{9}$/.test(phone.replace(/\s/g, ''));
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!validateEmail(formData.requesterEmail)) {
+      toast.error('Email must be a Gmail address (@gmail.com)');
+      return;
+    }
+
+    if (!validatePhone(formData.requesterPhone)) {
+      toast.error('Phone must start with +94 and contain exactly 9 digits.');
+      return;
+    }
+
     const fd = new FormData();
     Object.entries(formData).forEach(([key, value]) => fd.append(key, value));
     fd.append('pricePerDay', formData.price);
@@ -126,10 +140,22 @@ const PartnerRegister = () => {
     if (formData.providerType === 'guide') {
       return (
         <>
-          <input className="input-field" placeholder="Specialty (Cultural, Wildlife...)" value={formData.specialty} onChange={(e) => updateField('specialty', e.target.value)} required />
-          <input className="input-field" placeholder="Languages" value={formData.language} onChange={(e) => updateField('language', e.target.value)} />
-          <input className="input-field" placeholder="Experience (5 years)" value={formData.experience} onChange={(e) => updateField('experience', e.target.value)} />
-          <input className="input-field" placeholder="Certification" value={formData.certification} onChange={(e) => updateField('certification', e.target.value)} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
+            <input className="input-field" value={formData.specialty} onChange={(e) => updateField('specialty', e.target.value)} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Languages</label>
+            <input className="input-field" value={formData.language} onChange={(e) => updateField('language', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+            <input className="input-field" placeholder="e.g., 5 years" value={formData.experience} onChange={(e) => updateField('experience', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Certification</label>
+            <input className="input-field" value={formData.certification} onChange={(e) => updateField('certification', e.target.value)} />
+          </div>
         </>
       );
     }
@@ -137,28 +163,65 @@ const PartnerRegister = () => {
     if (formData.providerType === 'hotel') {
       return (
         <>
-          <textarea className="input-field md:col-span-2" rows="3" placeholder="Amenities (comma separated)" value={formData.amenities} onChange={(e) => updateField('amenities', e.target.value)} />
-          <input className="input-field" placeholder="Check-in" value={formData.checkIn} onChange={(e) => updateField('checkIn', e.target.value)} />
-          <input className="input-field" placeholder="Check-out" value={formData.checkOut} onChange={(e) => updateField('checkOut', e.target.value)} />
-          <input className="input-field" type="number" placeholder="Free cancellation hours" value={formData.freeCancellationHours} onChange={(e) => updateField('freeCancellationHours', e.target.value)} />
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amenities (comma separated)</label>
+            <textarea className="input-field" rows="3" value={formData.amenities} onChange={(e) => updateField('amenities', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Check-in</label>
+            <input className="input-field" value={formData.checkIn} onChange={(e) => updateField('checkIn', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Check-out</label>
+            <input className="input-field" value={formData.checkOut} onChange={(e) => updateField('checkOut', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Free cancellation hours</label>
+            <input className="input-field" type="number" value={formData.freeCancellationHours} onChange={(e) => updateField('freeCancellationHours', e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
             <input type="checkbox" checked={formData.breakfastIncluded} onChange={(e) => updateField('breakfastIncluded', e.target.checked)} />
-            Breakfast included
-          </label>
+            <label className="text-sm text-gray-700">Breakfast included</label>
+          </div>
         </>
       );
     }
 
+    // Vehicle
     return (
       <>
-        <input className="input-field" placeholder="Vehicle type (Car, Van...)" value={formData.type} onChange={(e) => updateField('type', e.target.value)} required />
-        <input className="input-field" type="number" placeholder="Passengers" value={formData.passengers} onChange={(e) => updateField('passengers', e.target.value)} required />
-        <input className="input-field" placeholder="Fuel type" value={formData.fuelType} onChange={(e) => updateField('fuelType', e.target.value)} />
-        <input className="input-field" placeholder="Fuel efficiency" value={formData.fuelEfficiency} onChange={(e) => updateField('fuelEfficiency', e.target.value)} />
-        <input className="input-field" placeholder="Year" value={formData.year} onChange={(e) => updateField('year', e.target.value)} />
-        <input className="input-field" type="number" placeholder="Security deposit" value={formData.securityDeposit} onChange={(e) => updateField('securityDeposit', e.target.value)} />
-        <textarea className="input-field md:col-span-2" rows="3" placeholder="Pickup locations (comma separated)" value={formData.pickupLocations} onChange={(e) => updateField('pickupLocations', e.target.value)} />
-        <textarea className="input-field md:col-span-2" rows="3" placeholder="Included features (comma separated)" value={formData.includedFeatures} onChange={(e) => updateField('includedFeatures', e.target.value)} />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle type</label>
+          <input className="input-field" placeholder="Car, Van, SUV..." value={formData.type} onChange={(e) => updateField('type', e.target.value)} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Passengers</label>
+          <input className="input-field" type="number" value={formData.passengers} onChange={(e) => updateField('passengers', e.target.value)} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fuel type</label>
+          <input className="input-field" value={formData.fuelType} onChange={(e) => updateField('fuelType', e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fuel efficiency</label>
+          <input className="input-field" value={formData.fuelEfficiency} onChange={(e) => updateField('fuelEfficiency', e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+          <input className="input-field" value={formData.year} onChange={(e) => updateField('year', e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Security deposit</label>
+          <input className="input-field" type="number" value={formData.securityDeposit} onChange={(e) => updateField('securityDeposit', e.target.value)} />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup locations (comma separated)</label>
+          <textarea className="input-field" rows="3" value={formData.pickupLocations} onChange={(e) => updateField('pickupLocations', e.target.value)} />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Included features (comma separated)</label>
+          <textarea className="input-field" rows="3" value={formData.includedFeatures} onChange={(e) => updateField('includedFeatures', e.target.value)} />
+        </div>
       </>
     );
   };
@@ -167,8 +230,13 @@ const PartnerRegister = () => {
     <div className="bg-gray-50 min-h-screen">
       <section className="bg-primary text-white">
         <div className="container mx-auto px-4 py-12">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">Partner Registration</h1>
-          <p className="text-white/80 max-w-2xl">Register as a guide, hotel, or vehicle partner. Your request appears in the admin/staff review queue before it is published.</p>
+          <div className="flex items-center gap-3">
+            <Mail size={32} />
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold">Contact Us – Register as a Provider</h1>
+              <p className="text-white/80 max-w-2xl">Register your guide, hotel, or vehicle services. Your request will be reviewed by our team before publication.</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -192,17 +260,41 @@ const PartnerRegister = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input className="input-field" placeholder="Your name" value={formData.requesterName} onChange={(e) => updateField('requesterName', e.target.value)} required />
-            <input className="input-field" type="email" placeholder="Email" value={formData.requesterEmail} onChange={(e) => updateField('requesterEmail', e.target.value)} required />
-            <input className="input-field" placeholder="Phone" value={formData.requesterPhone} onChange={(e) => updateField('requesterPhone', e.target.value)} required />
-            <input className="input-field" placeholder={formData.providerType === 'vehicle' ? 'Vehicle model' : 'Business / display name'} value={formData.businessName} onChange={(e) => updateField('businessName', e.target.value)} required />
-            <input className="input-field" placeholder="District" value={formData.district} onChange={(e) => updateField('district', e.target.value)} required />
-            <input className="input-field" placeholder="Location / service area" value={formData.location} onChange={(e) => updateField('location', e.target.value)} required />
-            <input className="input-field" type="number" placeholder={formData.providerType === 'hotel' ? 'Price per night (Rs)' : 'Price per day (Rs)'} value={formData.price} onChange={(e) => updateField('price', e.target.value)} required />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name:</label>
+              <input className="input-field" value={formData.requesterName} onChange={(e) => updateField('requesterName', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email (must be @gmail.com):</label>
+              <input className="input-field" type="email" value={formData.requesterEmail} onChange={(e) => updateField('requesterEmail', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone (+94xxxxxxxxx):</label>
+              <input className="input-field" value={formData.requesterPhone} onChange={(e) => updateField('requesterPhone', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{formData.providerType === 'vehicle' ? 'Vehicle model' : 'Business / display name'}:</label>
+              <input className="input-field" value={formData.businessName} onChange={(e) => updateField('businessName', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">District:</label>
+              <input className="input-field" value={formData.district} onChange={(e) => updateField('district', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location / service area:</label>
+              <input className="input-field" value={formData.location} onChange={(e) => updateField('location', e.target.value)} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{formData.providerType === 'hotel' ? 'Price per night (Rs)' : 'Price per day (Rs)'}:</label>
+              <input className="input-field" type="number" value={formData.price} onChange={(e) => updateField('price', e.target.value)} required />
+            </div>
             {renderSpecificFields()}
           </div>
 
-          <textarea className="input-field" rows="4" placeholder="Tell us anything admin/staff should know" value={formData.message} onChange={(e) => updateField('message', e.target.value)} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Additional message:</label>
+            <textarea className="input-field" rows="4" value={formData.message} onChange={(e) => updateField('message', e.target.value)} />
+          </div>
 
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-5">
             <input id="partner-images" className="hidden" type="file" accept="image/*" multiple onChange={handleImages} />

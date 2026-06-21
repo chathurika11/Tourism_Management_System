@@ -1,16 +1,17 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { 
-  Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package, 
-  Car, Home, BookOpen, X, MessageCircle 
+import {
+  Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package,
+  Car, Home, BookOpen, X, MessageCircle
 } from 'lucide-react';
 import API, { getImageUrl } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import toast from 'react-hot-toast';
 import tourPackagesBg from '../images/TourPackagesBackground.jpg';
 
+// --- Package Card (memoized) ---
 const PackageCard = React.memo(({ pkg, onViewDetails }) => (
   <div className="group bg-white rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative">
     <div className="relative overflow-hidden h-64">
@@ -38,44 +39,43 @@ const PackageCard = React.memo(({ pkg, onViewDetails }) => (
   </div>
 ));
 
-const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
+// --- Package Detail Modal ---
+const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
   const [passengers, setPassengers] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
 
-  const loadFeedbacks = React.useCallback(() => {
-    if (!pkg?.id) return;
-    API.get(`/feedback/tour/${pkg.id}`)
-      .then(res => setFeedbacks(res.data))
-      .catch(err => console.error(err));
-  }, [pkg?.id]);
-
+  // Load feedbacks
   useEffect(() => {
-    if (isOpen && pkg?.id) loadFeedbacks();
-  }, [isOpen, pkg?.id, loadFeedbacks]);
+    if (isOpen && pkg?.id) {
+      API.get(`/feedback/tour/${pkg.id}`)
+        .then(res => setFeedbacks(res.data))
+        .catch(err => console.error(err));
+    }
+  }, [isOpen, pkg?.id]);
 
   if (!isOpen || !pkg) return null;
 
-  const calculateDays = () => {
-    if (!startDate || !endDate) return 0;
-    const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-    return diff > 0 ? diff : 0;
+  const durationDays = parseInt(pkg.duration) || 1;
+  const getEndDate = (start) => {
+    if (!start) return null;
+    const d = new Date(start);
+    d.setDate(d.getDate() + durationDays - 1);
+    return d.toISOString().split('T')[0];
   };
-
+  const endDate = startDate ? getEndDate(startDate) : '';
   const totalAmount = pkg.price * passengers;
-
-  const handleProceedToBooking = () => setStep(2);
 
   const handleAddFeedback = async ({ tourId, rating, comment }) => {
     await API.post('/feedback/tour', { tourId, rating, comment });
     toast.success('Review submitted');
-    loadFeedbacks();
+    const res = await API.get(`/feedback/tour/${pkg.id}`);
+    setFeedbacks(res.data);
   };
 
   const handleBookNow = async () => {
@@ -88,7 +88,6 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
         duration: pkg.duration,
         maxPeople: pkg.maxPeople,
         startDate,
-        endDate,
         passengers,
       }));
       toast.error('Please login to book this package');
@@ -96,8 +95,8 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
       return;
     }
 
-    if (!startDate || !endDate) {
-      toast.error('Please select travel dates');
+    if (!startDate) {
+      toast.error('Please select a start date');
       return;
     }
 
@@ -106,30 +105,22 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
     const start = new Date(startDate);
     const now = new Date();
 
-    // 1. Past date check
     if (start < today) {
       toast.error('Start date cannot be in the past');
       return;
     }
-
-    // 2. At least 48 hours before start date
     const hoursDiff = (start - now) / (1000 * 60 * 60);
     if (hoursDiff < 48) {
-      toast.error('Bookings must be made at least 48 hours before the tour start date');
+      toast.error('Bookings must be made at least 48 hours before the start date');
       return;
     }
-
     if (passengers < 1) {
       toast.error('Minimum 1 passenger');
       return;
     }
-    const days = calculateDays();
-    if (days <= 0) {
-      toast.error('End date must be after start date');
-      return;
-    }
-    if (passengers > pkg.maxPeople) {
-      toast.error(`Max ${pkg.maxPeople} passengers allowed`);
+    const maxPeople = parseInt(pkg.maxPeople) || 10;
+    if (passengers > maxPeople) {
+      toast.error(`Max ${maxPeople} passengers allowed`);
       return;
     }
 
@@ -140,16 +131,14 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
         packageName: pkg.name,
         startDate,
         endDate,
-        numberOfDays: days,
+        numberOfDays: durationDays,
         passengers: parseInt(passengers),
         totalAmount: parseFloat(totalAmount),
         status: 'pending',
         paymentStatus: 'unpaid',
       };
-
       const res = await API.post('/bookings', bookingPayload);
-      const savedBooking = res.data;
-      sessionStorage.setItem('pendingBooking', JSON.stringify(savedBooking));
+      sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
       navigate('/payment');
     } catch (err) {
       console.error('Booking error:', err);
@@ -198,7 +187,7 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
               <div className="flex gap-3 mt-6">
                 <button onClick={onClose} className="btn-outline flex-1">Close</button>
                 <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>
-                <button onClick={handleProceedToBooking} className="btn-primary flex-1">Book Now →</button>
+                <button onClick={() => setStep(2)} className="btn-primary flex-1">Book Now →</button>
               </div>
             </div>
             <div className="border-t border-gray-100 p-6 bg-gray-50">
@@ -229,17 +218,37 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
           </>
         ) : (
           <div className="p-6 md:p-8">
-            <h2 className="text-2xl font-bold text-primary mb-4">Customize Your Booking</h2>
+            <h2 className="text-2xl font-bold text-primary mb-4">Book Your Tour</h2>
             <div className="space-y-5">
-              <div><label className="block font-medium mb-1">Start Date *</label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input-field" required /></div>
-              <div><label className="block font-medium mb-1">End Date *</label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input-field" required /></div>
-              <div><label className="block font-medium mb-1">Number of Passengers *</label>
-                <input type="number" min="1" max={pkg.maxPeople} value={passengers} onChange={e => setPassengers(e.target.value)} className="input-field" />
+              <div>
+                <label className="block font-medium mb-1">Start Date *</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  min={new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                  className="input-field"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Bookings must be made at least 48 hours in advance.</p>
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Number of Passengers *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={parseInt(pkg.maxPeople) || 10}
+                  value={passengers}
+                  onChange={e => setPassengers(e.target.value)}
+                  className="input-field"
+                />
                 <p className="text-xs text-gray-500 mt-1">Max {pkg.maxPeople} people</p>
               </div>
-              {calculateDays() > 0 && (
+              {startDate && (
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p><strong>Number of days:</strong> {calculateDays()}</p>
+                  <p><strong>Start Date:</strong> {startDate}</p>
+                  <p><strong>End Date:</strong> {endDate}</p>
+                  <p><strong>Duration:</strong> {durationDays} days</p>
                   <p><strong>Total Price:</strong> <span className="font-bold text-primary text-xl">Rs {totalAmount.toLocaleString()}</span></p>
                 </div>
               )}
@@ -265,6 +274,7 @@ const PackageDetailModal = ({ isOpen, onClose, pkg }) => {
   );
 };
 
+// --- Main TourPackages component ---
 const TourPackages = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPackage, setSelectedPackage] = useState(null);
@@ -308,30 +318,44 @@ const TourPackages = () => {
           <div className="mt-10 max-w-md mx-auto">
             <div className="relative group">
               <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition" size={22} />
-              <input type="text" placeholder="Search by name or district..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-4 py-4 rounded-full text-dark focus:outline-none focus:ring-4 focus:ring-cta/50 shadow-2xl transition" />
+              <input
+                type="text"
+                placeholder="Search by name or district..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-14 pr-4 py-4 rounded-full text-dark focus:outline-none focus:ring-4 focus:ring-cta/50 shadow-2xl transition"
+              />
             </div>
           </div>
         </div>
       </section>
 
       <section className="py-16 container mx-auto px-4">
-        {filteredPackages.length === 0 ? <div className="text-center py-16"><p className="text-gray-500 text-xl">No packages found.</p></div> : (
+        {filteredPackages.length === 0 ? (
+          <div className="text-center py-16"><p className="text-gray-500 text-xl">No packages found.</p></div>
+        ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredPackages.map(pkg => <PackageCard key={pkg.id} pkg={pkg} onViewDetails={handleViewDetails} />)}
+              {filteredPackages.map((pkg) => (
+                <PackageCard key={pkg.id} pkg={pkg} onViewDetails={handleViewDetails} />
+              ))}
             </div>
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-6 mt-12">
-                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} className="btn-outline px-6 py-2 disabled:opacity-40 transition">Previous</button>
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline px-6 py-2 disabled:opacity-40 transition">Previous</button>
                 <span className="text-gray-700 font-medium">Page {page} of {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages} className="btn-outline px-6 py-2 disabled:opacity-40 transition">Next</button>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-outline px-6 py-2 disabled:opacity-40 transition">Next</button>
               </div>
             )}
           </>
         )}
       </section>
 
-      <PackageDetailModal isOpen={showModal} onClose={() => setShowModal(false)} pkg={selectedPackage} />
+      <PackageDetailModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        pkg={selectedPackage}
+      />
     </div>
   );
 };

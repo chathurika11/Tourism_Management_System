@@ -55,9 +55,11 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create hotel (admin only)
+// POST /hotels (admin only)
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
+    // If a file was uploaded, use its path; otherwise use the provided imageUrl
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || '');
     const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
     const data = {
       name: req.body.name,
@@ -83,7 +85,7 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
-// PUT update hotel (admin only)
+// PUT /hotels/:id
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
@@ -98,7 +100,11 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
       freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
       breakfastIncluded: req.body.breakfastIncluded === 'true',
     };
-    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (req.file) {
+      data.image = `/uploads/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      data.image = req.body.imageUrl;
+    }
     const hotel = await prisma.hotel.update({ where: { id: req.params.id }, data });
     await logAudit(req, 'HOTEL_UPDATED', 'Hotel', hotel.id, {
       description: `Updated ${hotel.name} hotel`,

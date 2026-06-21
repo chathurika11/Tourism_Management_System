@@ -4,7 +4,6 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Helper to detect card type from first digit(s)
 function detectCardType(cardNumber) {
   const first = cardNumber.charAt(0);
   if (first === '4') return 'Visa';
@@ -27,7 +26,6 @@ router.post('/process', async (req, res) => {
       return res.status(400).json({ error: 'Missing bookingId or paymentMethod' });
     }
 
-    // Verify the booking belongs to the logged-in user (or admin)
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (booking.userId !== decoded.id && !['admin', 'staff'].includes(decoded.role)) {
@@ -40,28 +38,26 @@ router.post('/process', async (req, res) => {
     let transactionId;
     let updatedBooking;
 
+    // ---- PayPal ----
     if (paymentMethod === 'paypal') {
-      // ========== MOCK PAYPAL PAYMENT ==========
       transactionId = 'PAYPAL_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
       updatedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: {
-          status: 'confirmed',
           paymentStatus: 'paid',
           paymentMethod: 'paypal',
-          confirmedAt: new Date(),
           transactionId,
+          // status remains unchanged (still pending)
         }
       });
       return res.json({ success: true, transactionId, booking: updatedBooking });
     }
 
-    // ========== CARD PAYMENT (default) ==========
+    // ---- Card payment ----
     if (!cardNumber || !cardExpiry || !cardCvv || !cardHolder) {
       return res.status(400).json({ error: 'Missing card details' });
     }
 
-    // Simple card validation
     const rawCardNumber = cardNumber.replace(/\s/g, '');
     if (rawCardNumber.length < 15 || rawCardNumber.length > 19) {
       return res.status(400).json({ error: 'Invalid card number' });
@@ -83,13 +79,12 @@ router.post('/process', async (req, res) => {
     updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
-        status: 'confirmed',
         paymentStatus: 'paid',
         cardLastFour: lastFour,
         cardType,
         paymentMethod: 'card',
-        confirmedAt: new Date(),
         transactionId,
+        // status remains unchanged (still pending)
       }
     });
 
