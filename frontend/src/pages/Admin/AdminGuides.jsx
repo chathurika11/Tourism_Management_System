@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
@@ -8,7 +8,7 @@ import API, { getImageUrl } from '../../services/api';
 const AdminGuides = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const prefill = location.state?.prefill || {};
+  const prefill = useMemo(() => location.state?.prefill || {}, [location.state]);
 
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);

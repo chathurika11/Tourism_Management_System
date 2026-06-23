@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ChevronRight, ChevronDown } from 'lucide-react';
 import L from 'leaflet';
@@ -7,12 +7,15 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 
+// ... (rest of the file as we provided earlier – the full one with all step renders and renderConfirmModal)
+// Since it's long, I'll include it in the final answer.
+
 // Lazy load Leaflet components
-const MapContainer = lazy(() => import('react-leaflet').then(module => ({ default: module.MapContainer })));
-const TileLayer = lazy(() => import('react-leaflet').then(module => ({ default: module.TileLayer })));
-const Marker = lazy(() => import('react-leaflet').then(module => ({ default: module.Marker })));
-const Popup = lazy(() => import('react-leaflet').then(module => ({ default: module.Popup })));
-const Polyline = lazy(() => import('react-leaflet').then(module => ({ default: module.Polyline })));
+const MapContainer = React.lazy(() => import('react-leaflet').then(module => ({ default: module.MapContainer })));
+const TileLayer = React.lazy(() => import('react-leaflet').then(module => ({ default: module.TileLayer })));
+const Marker = React.lazy(() => import('react-leaflet').then(module => ({ default: module.Marker })));
+const Popup = React.lazy(() => import('react-leaflet').then(module => ({ default: module.Popup })));
+const Polyline = React.lazy(() => import('react-leaflet').then(module => ({ default: module.Polyline })));
 
 // Fix Leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -154,7 +157,7 @@ const CustomBooking = () => {
     }
   };
 
-  // Night calculation: first 48h = 1 night, each additional 24h adds 1 night
+  // Night calculation
   const numberOfNights = useMemo(() => {
     if (!startDate || !endDate) return 0;
     const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
@@ -263,9 +266,15 @@ const CustomBooking = () => {
   };
   const handlePrev = () => { if (step > 1) setStep(step-1); };
 
+  // ⭐ KEY FUNCTION: handles unauthenticated users
   const handleConfirmBooking = async () => {
     if (!user) {
-      sessionStorage.setItem('pendingCustomBooking', JSON.stringify({ destinations, startDate, endDate, passengers }));
+      sessionStorage.setItem('pendingCustomBooking', JSON.stringify({
+        destinations,
+        startDate,
+        endDate,
+        passengers,
+      }));
       toast.error('Please login to confirm booking');
       navigate('/login');
       return;
@@ -542,7 +551,7 @@ const CustomBooking = () => {
           {isOpen && (
             <div className="p-4">
               <div className="border rounded-lg overflow-hidden" style={{ height: '350px', width: '100%' }}>
-                <Suspense fallback={<div className="bg-gray-100 animate-pulse flex items-center justify-center h-full">Loading map...</div>}>
+                <React.Suspense fallback={<div className="bg-gray-100 animate-pulse flex items-center justify-center h-full">Loading map...</div>}>
                   <MapContainer key={mapKey} center={startPoint} zoom={10} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <Marker position={startPoint} icon={createNumberedIcon(0, true)}><Popup>Start: {dest.districtName}</Popup></Marker>
@@ -552,7 +561,7 @@ const CustomBooking = () => {
                     {positions.length > 1 && <Polyline positions={positions} color="#D4AF37" weight={4} />}
                     <FitBounds positions={positions} />
                   </MapContainer>
-                </Suspense>
+                </React.Suspense>
               </div>
               <div className="bg-blue-50 p-2 rounded mt-2 text-sm">Optimised route: {optimalRoute.map(p => p.name).join(' → ')}</div>
             </div>
@@ -572,6 +581,7 @@ const CustomBooking = () => {
     </div>
   );
 
+  // ---------- Confirm Modal ----------
   const renderConfirmModal = () => {
     if (!selectedRoute) return null;
     const total = calculateTotal;

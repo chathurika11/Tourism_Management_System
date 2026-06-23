@@ -102,15 +102,12 @@ const Register = () => {
     setCountryCode(code);
     const currentPhone = phone.replace(/^\+?\d*/, '');
     setPhone(code + currentPhone);
-    
-    // Non-Sri Lanka countries can only have Passport (NIC is SL-specific)
+
     if (country && country !== 'Sri Lanka') {
       setIdType('passport');
     } else {
-      // For Sri Lanka, default to NIC
       setIdType('nic');
     }
-    // Clear and re-validate id on country change
     setIdNumber('');
     setIdError('');
   };
@@ -193,49 +190,51 @@ const Register = () => {
       country: selectedCountry,
       password: password,
       idNumber: idNumber.trim().toUpperCase(),
-      idType: idType
+      idType: idType,
     };
     const success = await register(userData);
     setLoading(false);
-      if (success) {
-        // After registration, resume any pending bookings
-        const pendingBooking = sessionStorage.getItem('pendingBooking');
-        const pendingCustom = sessionStorage.getItem('pendingCustomBooking');
-        const intended = sessionStorage.getItem('intendedBooking');
-        if (pendingBooking) {
+    if (success) {
+      // After registration, resume any pending bookings
+      const pendingBooking = sessionStorage.getItem('pendingBooking');
+      const pendingCustom = sessionStorage.getItem('pendingCustomBooking');
+      const intended = sessionStorage.getItem('intendedBooking');
+      if (pendingBooking) {
+        navigate('/payment');
+        return;
+      }
+      if (pendingCustom) {
+        navigate('/plan-tour');
+        return;
+      }
+      if (intended) {
+        try {
+          const obj = JSON.parse(intended);
+          const start = new Date(obj.startDate);
+          const end = new Date(obj.endDate);
+          const numberOfDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+          const payload = {
+            type: 'Tour Package',
+            packageName: obj.packageName,
+            startDate: obj.startDate,
+            endDate: obj.endDate,
+            numberOfDays: numberOfDays || 1,
+            passengers: parseInt(obj.passengers) || 1,
+            totalAmount: parseFloat((obj.price || 0) * (obj.passengers || 1)),
+            status: 'pending',
+            paymentStatus: 'unpaid',
+          };
+          const res = await API.post('/bookings', payload);
+          sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
+          sessionStorage.removeItem('intendedBooking');
           navigate('/payment');
           return;
+        } catch (e) {
+          console.error('Resume intended booking after register failed', e);
         }
-        if (pendingCustom) {
-          navigate('/plan-tour');
-          return;
-        }
-        if (intended) {
-          try {
-            const obj = JSON.parse(intended);
-            const start = new Date(obj.startDate);
-            const end = new Date(obj.endDate);
-            const numberOfDays = Math.ceil((end - start) / (1000*60*60*24));
-            const payload = {
-              type: 'Tour Package',
-              packageName: obj.packageName,
-              startDate: obj.startDate,
-              endDate: obj.endDate,
-              numberOfDays: numberOfDays || 1,
-              passengers: parseInt(obj.passengers) || 1,
-              totalAmount: parseFloat((obj.price || 0) * (obj.passengers || 1)),
-              status: 'pending',
-              paymentStatus: 'unpaid'
-            };
-            const res = await API.post('/bookings', payload);
-            sessionStorage.setItem('pendingBooking', JSON.stringify(res.data));
-            sessionStorage.removeItem('intendedBooking');
-            navigate('/payment');
-            return;
-          } catch (e) { console.error('Resume intended booking after register failed', e); }
-        }
-        navigate('/');
       }
+      navigate('/');
+    }
   };
 
   return (
@@ -276,7 +275,9 @@ const Register = () => {
               <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <select value={selectedCountry} onChange={handleCountryChange} className="input-field pl-10" required>
                 <option value="">Select Country</option>
-                {Object.keys(countryCodes).map(country => <option key={country}>{country}</option>)}
+                {Object.keys(countryCodes).map((country) => (
+                  <option key={country}>{country}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -284,7 +285,15 @@ const Register = () => {
             <label className="block text-gray-700 mb-1">Phone Number *</label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="tel" value={phone} onChange={handlePhoneChange} className="input-field pl-10" placeholder={countryCode ? `${countryCode} XX XXX XXXX` : "Select country first"} required disabled={!selectedCountry} />
+              <input
+                type="tel"
+                value={phone}
+                onChange={handlePhoneChange}
+                className="input-field pl-10"
+                placeholder={countryCode ? `${countryCode} XX XXX XXXX` : 'Select country first'}
+                required
+                disabled={!selectedCountry}
+              />
             </div>
           </div>
           <div>
@@ -298,10 +307,16 @@ const Register = () => {
             <label className="block text-gray-700 mb-1">ID / Passport Number *</label>
             <div className="relative">
               <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="text" value={idNumber} onChange={handleIdChange} className="input-field pl-10" placeholder="Enter NIC or Passport" required />
+              <input
+                type="text"
+                value={idNumber}
+                onChange={handleIdChange}
+                className="input-field pl-10"
+                placeholder="Enter NIC or Passport"
+                required
+              />
             </div>
             {idError && <p className="text-red-500 text-xs mt-1">{idError}</p>}
-            {/* ID Type Toggle — show for all countries once selected */}
             {selectedCountry && (
               <div className="flex gap-2 mt-2">
                 {selectedCountry === 'Sri Lanka' && (
@@ -335,7 +350,13 @@ const Register = () => {
             <label className="block text-gray-700 mb-1">Password *</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="password" value={password} onChange={handlePasswordChange} className="input-field pl-10" required />
+              <input
+                type="password"
+                value={password}
+                onChange={handlePasswordChange}
+                className="input-field pl-10"
+                required
+              />
             </div>
             {passwordError && <p className="text-red-500 text-xs mt-1">{passwordError}</p>}
             <p className="text-xs text-gray-400 mt-1">Min 6 characters, at least 1 letter and 1 number</p>
@@ -344,14 +365,23 @@ const Register = () => {
             <label className="block text-gray-700 mb-1">Confirm Password *</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-field pl-10" required />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input-field pl-10"
+                required
+              />
             </div>
           </div>
-          
+
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 p-3 border border-primary bg-primary/5 rounded-lg">
               <UserCircle size={20} className="text-primary" />
-              <div><span className="font-semibold">Customer Account</span><p className="text-xs text-gray-500">Book tours, hotels, vehicles</p></div>
+              <div>
+                <span className="font-semibold">Customer Account</span>
+                <p className="text-xs text-gray-500">Book tours, hotels, vehicles</p>
+              </div>
             </div>
           </div>
           <div className="md:col-span-2">
@@ -360,7 +390,9 @@ const Register = () => {
             </button>
           </div>
         </form>
-        <p className="text-center mt-6 text-gray-600">Already have an account? <Link to="/login" className="text-secondary font-semibold hover:underline">Sign in</Link></p>
+        <p className="text-center mt-6 text-gray-600">
+          Already have an account? <Link to="/login" className="text-secondary font-semibold hover:underline">Sign in</Link>
+        </p>
       </div>
     </div>
   );
