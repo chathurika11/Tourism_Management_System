@@ -241,6 +241,31 @@ const PartnerRegister = () => {
       </section>
 
       <div className="container mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-3 bg-white rounded-lg shadow p-6 mb-2">
+  <h2 className="text-2xl font-bold text-primary mb-4">
+    Contact Information
+  </h2>
+
+<div className="space-y-3">
+
+  <div className="border rounded-lg p-4">
+    <h3 className="font-semibold">📞 Phone</h3>
+    <p>+94 11 234 5678</p>
+  </div>
+
+  <div className="border rounded-lg p-4">
+    <h3 className="font-semibold">📧 Email</h3>
+    <p>hello@serendigo.com</p>
+  </div>
+
+  <div className="border rounded-lg p-4">
+    <h3 className="font-semibold">📍 Address</h3>
+    <p>Colombo, Sri Lanka</p>
+  </div>
+
+</div>
+  </div>
+
         {/* Main Form */}
         <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white rounded-lg shadow p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
