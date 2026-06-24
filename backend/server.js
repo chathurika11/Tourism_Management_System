@@ -27,6 +27,7 @@ const paymentRoutes = require('./routes/payments');
 const districtRoutes = require('./routes/districts');
 const customerRoutes = require('./routes/customers');
 const providerRequestRoutes = require('./routes/providerRequests');
+const searchRoutes = require('./routes/search'); // Added search routes
 
 app.use('/api/auth', authRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -40,6 +41,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/districts', districtRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/provider-requests', providerRequestRoutes);
+app.use('/api/search', searchRoutes); // Added search routes
 
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!' });
@@ -94,8 +96,6 @@ const ensureMainAdmin = async () => {
     await assignRoleToUser(existingAdmin.id, 'ADMIN');
   }
 };
-
-
 
 const PORT = process.env.PORT || 5000;
 

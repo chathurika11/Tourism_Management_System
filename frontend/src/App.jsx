@@ -46,6 +46,9 @@ const HotelDetailPage = lazy(() => import('./pages/HotelDetailPage'));
 const TourDetailPage = lazy(() => import('./pages/TourDetailPage'));
 const GuideDetailPage = lazy(() => import('./pages/GuideDetailPage'));
 const PartnerRegister = lazy(() => import('./pages/PartnerRegister'));
+const SearchResults = lazy(() => import('./pages/SearchResults'));
+
+
 
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminHotels = lazy(() => import('./pages/Admin/AdminHotels'));
@@ -105,6 +108,8 @@ function App() {
                   <Route path="/staff/bookings" element={<PrivateRoute roles={['staff', 'admin']}><AdminBookings /></PrivateRoute>} />
                   <Route path="/staff/support" element={<PrivateRoute roles={['staff', 'admin']}><AdminFeedbacks /></PrivateRoute>} />
                   <Route path="/customers" element={<PrivateRoute roles={['staff', 'admin']}><CustomersManagement /></PrivateRoute>} />
+                  <Route path="/search" element={<SearchResults />} />
+                  
                   <Route path="/admin" element={<PrivateRoute roles={['admin', 'staff']}><AdminDashboard /></PrivateRoute>}>
                     <Route index element={<Navigate to="/admin/dashboard" replace />} />
                     <Route path="dashboard" element={null} />
