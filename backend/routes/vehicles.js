@@ -26,7 +26,12 @@ router.get('/', async (req, res) => {
 
     if (district) {
       const vehicles = await prisma.vehicle.findMany({
-        where: { district: { equals: district, mode: 'insensitive' } },
+        where: {
+          OR: [
+            { district: { contains: district, mode: 'insensitive' } },
+            { location: { contains: district, mode: 'insensitive' } }
+          ]
+        },
         orderBy: { rating: 'desc' }
       });
       return res.json(vehicles);
@@ -143,10 +148,20 @@ router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
     if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+
+    // Set vehicleId to null in referencing TourPackages
+    await prisma.tourPackage.updateMany({
+      where: { vehicleId: req.params.id },
+      data: { vehicleId: null }
+    });
+
+    // Delete associated feedbacks
+    await prisma.vehicleFeedback.deleteMany({ where: { vehicleId: req.params.id } });
+
     await prisma.vehicle.delete({ where: { id: req.params.id } });
     await logAudit(req, 'VEHICLE_DELETED', 'Vehicle', req.params.id, {
-      description: `Deleted ${vehicle?.model || req.params.id} vehicle`,
-      name: vehicle?.model,
+      description: `Deleted ${vehicle.model} vehicle`,
+      name: vehicle.model,
     });
     res.json({ message: 'Vehicle deleted successfully' });
   } catch (error) {

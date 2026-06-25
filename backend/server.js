@@ -48,52 +48,60 @@ app.get('/api/test', (req, res) => {
 });
 
 const ensureMainAdmin = async () => {
-  await ensureRoles();
+  try {
+    await ensureRoles();
 
-  const username = process.env.ADMIN_USERNAME || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'admin1234';
+    const username = process.env.ADMIN_USERNAME || 'admin';
+    const password = process.env.ADMIN_PASSWORD || 'admin1234';
 
-  const existingAdmin = await prisma.user.findUnique({
-    where: { username }
-  });
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  if (!existingAdmin) {
-    const admin = await prisma.user.create({
-      data: {
-        name: 'Main Admin',
-        username,
-        email: process.env.ADMIN_EMAIL || 'admin@serendigo.local',
-        phone: '+94000000000',
-        address: 'SerendiGo Office',
-        country: 'Sri Lanka',
-        password: hashedPassword,
-        passwordHash: hashedPassword,
-        status: 'ACTIVE',
-        emailVerified: true,
-        mustChangePassword: false,
-        role: 'admin'
-      }
+    const existingAdmin = await prisma.user.findUnique({
+      where: { username }
     });
 
-    await assignRoleToUser(admin.id, 'ADMIN');
-    console.log(`Main admin created: username=${username} password=${password}`);
-  } else {
-    await prisma.user.update({
-      where: { id: existingAdmin.id },
-      data: {
-        name: 'Main Admin',
-        password: hashedPassword,
-        passwordHash: hashedPassword,
-        status: 'ACTIVE',
-        emailVerified: true,
-        mustChangePassword: false,
-        role: 'admin'
-      }
-    });
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    await assignRoleToUser(existingAdmin.id, 'ADMIN');
+    if (!existingAdmin) {
+      const admin = await prisma.user.create({
+        data: {
+          name: 'Main Admin',
+          username,
+          email: process.env.ADMIN_EMAIL || 'admin@serendigo.local',
+          phone: '+94000000000',
+          address: 'SerendiGo Office',
+          country: 'Sri Lanka',
+          password: hashedPassword,
+          passwordHash: hashedPassword,
+          status: 'ACTIVE',
+          emailVerified: true,
+          mustChangePassword: false,
+          role: 'admin'
+        }
+      });
+
+      await assignRoleToUser(admin.id, 'ADMIN');
+      console.log(`Main admin created: username=${username} password=${password}`);
+    } else {
+      try {
+        await prisma.user.update({
+          where: { id: existingAdmin.id },
+          data: {
+            name: 'Main Admin',
+            password: hashedPassword,
+            passwordHash: hashedPassword,
+            status: 'ACTIVE',
+            emailVerified: true,
+            mustChangePassword: false,
+            role: 'admin'
+          }
+        });
+
+        await assignRoleToUser(existingAdmin.id, 'ADMIN');
+      } catch (updateError) {
+        console.warn('⚠️ Non-fatal: Main admin update write conflict/deadlock. Skipping update since admin exists.', updateError.message);
+      }
+    }
+  } catch (error) {
+    console.error('⚠️ Non-fatal: Failed to ensure main admin exists:', error.message);
   }
 };
 

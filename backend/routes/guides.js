@@ -26,7 +26,12 @@ router.get('/', async (req, res) => {
 
     if (district) {
       const guides = await prisma.guide.findMany({
-        where: { district: { equals: district, mode: 'insensitive' } },
+        where: {
+          OR: [
+            { district: { contains: district, mode: 'insensitive' } },
+            { location: { contains: district, mode: 'insensitive' } }
+          ]
+        },
         orderBy: { rating: 'desc' }
       });
       return res.json(guides);
@@ -132,10 +137,20 @@ router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const guide = await prisma.guide.findUnique({ where: { id: req.params.id } });
     if (!guide) return res.status(404).json({ error: 'Guide not found' });
+
+    // Set guideId to null in referencing TourPackages
+    await prisma.tourPackage.updateMany({
+      where: { guideId: req.params.id },
+      data: { guideId: null }
+    });
+
+    // Delete associated feedbacks
+    await prisma.guideFeedback.deleteMany({ where: { guideId: req.params.id } });
+
     await prisma.guide.delete({ where: { id: req.params.id } });
     await logAudit(req, 'GUIDE_DELETED', 'Guide', req.params.id, {
-      description: `Deleted ${guide?.name || req.params.id} guide`,
-      name: guide?.name,
+      description: `Deleted ${guide.name} guide`,
+      name: guide.name,
     });
     res.json({ message: 'Guide deleted successfully' });
   } catch (error) {

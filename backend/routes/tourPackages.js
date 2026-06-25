@@ -77,7 +77,12 @@ router.get('/:id', async (req, res) => {
 // Reference endpoints (unchanged but ensure they use indexes)
 router.get('/reference/hotels/:district', adminOnly, async (req, res) => {
   const hotels = await prisma.hotel.findMany({
-    where: { district: req.params.district },
+    where: {
+      OR: [
+        { district: { contains: req.params.district, mode: 'insensitive' } },
+        { location: { contains: req.params.district, mode: 'insensitive' } }
+      ]
+    },
     select: { id: true, name: true, district: true },
     orderBy: { name: 'asc' }
   });
@@ -86,7 +91,12 @@ router.get('/reference/hotels/:district', adminOnly, async (req, res) => {
 
 router.get('/reference/vehicles/:district', adminOnly, async (req, res) => {
   const vehicles = await prisma.vehicle.findMany({
-    where: { district: req.params.district },
+    where: {
+      OR: [
+        { district: { contains: req.params.district, mode: 'insensitive' } },
+        { location: { contains: req.params.district, mode: 'insensitive' } }
+      ]
+    },
     select: { id: true, model: true, type: true, district: true },
     orderBy: { model: 'asc' }
   });
@@ -95,7 +105,12 @@ router.get('/reference/vehicles/:district', adminOnly, async (req, res) => {
 
 router.get('/reference/guides/:district', adminOnly, async (req, res) => {
   const guides = await prisma.guide.findMany({
-    where: { district: req.params.district },
+    where: {
+      OR: [
+        { district: { contains: req.params.district, mode: 'insensitive' } },
+        { location: { contains: req.params.district, mode: 'insensitive' } }
+      ]
+    },
     select: { id: true, name: true, specialty: true, district: true },
     orderBy: { name: 'asc' }
   });
@@ -188,13 +203,28 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 });
 
 router.delete('/:id', adminOnly, async (req, res) => {
-  const pkg = await prisma.tourPackage.findUnique({ where: { id: req.params.id } });
-  await prisma.tourPackage.delete({ where: { id: req.params.id } });
-  await logAudit(req, 'PACKAGE_DELETED', 'TourPackage', req.params.id, {
-    description: `Deleted ${pkg?.name || req.params.id} tour package`,
-    name: pkg?.name,
-  });
-  res.json({ message: 'Package deleted' });
+  try {
+    const pkg = await prisma.tourPackage.findUnique({ where: { id: req.params.id } });
+    if (!pkg) {
+      return res.status(404).json({ error: 'Tour package not found' });
+    }
+
+    // Delete associated feedbacks first to prevent foreign key constraint failures
+    await prisma.tourFeedback.deleteMany({ where: { tourId: req.params.id } });
+
+    // Delete the tour package
+    await prisma.tourPackage.delete({ where: { id: req.params.id } });
+
+    await logAudit(req, 'PACKAGE_DELETED', 'TourPackage', req.params.id, {
+      description: `Deleted ${pkg.name} tour package`,
+      name: pkg.name,
+    });
+
+    res.json({ message: 'Package deleted successfully' });
+  } catch (error) {
+    console.error('❌ DELETE /tour-packages/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

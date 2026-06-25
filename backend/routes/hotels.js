@@ -26,7 +26,12 @@ router.get('/', async (req, res) => {
 
     if (district) {
       const hotels = await prisma.hotel.findMany({
-        where: { district: { equals: district, mode: 'insensitive' } },
+        where: {
+          OR: [
+            { district: { contains: district, mode: 'insensitive' } },
+            { location: { contains: district, mode: 'insensitive' } }
+          ]
+        },
         orderBy: { rating: 'desc' }
       });
       return res.json(hotels);
@@ -118,13 +123,31 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 
 // DELETE hotel (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
-  const hotel = await prisma.hotel.findUnique({ where: { id: req.params.id } });
-  await prisma.hotel.delete({ where: { id: req.params.id } });
-  await logAudit(req, 'HOTEL_DELETED', 'Hotel', req.params.id, {
-    description: `Deleted ${hotel?.name || req.params.id} hotel`,
-    name: hotel?.name,
-  });
-  res.json({ message: 'Hotel deleted' });
+  try {
+    const hotel = await prisma.hotel.findUnique({ where: { id: req.params.id } });
+    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
+
+    // Set hotelId to null in referencing TourPackages
+    await prisma.tourPackage.updateMany({
+      where: { hotelId: req.params.id },
+      data: { hotelId: null }
+    });
+
+    // Delete associated feedbacks
+    await prisma.hotelFeedback.deleteMany({ where: { hotelId: req.params.id } });
+
+    await prisma.hotel.delete({ where: { id: req.params.id } });
+
+    await logAudit(req, 'HOTEL_DELETED', 'Hotel', req.params.id, {
+      description: `Deleted ${hotel.name} hotel`,
+      name: hotel.name,
+    });
+
+    res.json({ message: 'Hotel deleted successfully' });
+  } catch (error) {
+    console.error('❌ DELETE /hotels/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

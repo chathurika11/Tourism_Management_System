@@ -102,7 +102,7 @@ const AdminTourPackages = () => {
       refetch();
       toast.success('Package deleted');
     },
-    onError: () => toast.error('Delete failed'),
+    onError: (err) => toast.error(err.response?.data?.error || 'Delete failed'),
   });
 
   const handleImageUpload = (e) => {
