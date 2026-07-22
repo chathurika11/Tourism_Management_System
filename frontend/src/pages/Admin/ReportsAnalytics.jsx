@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import { Download, TrendingUp, BarChart3, Hotel, Car, Users, Compass, DollarSign, RefreshCw } from 'lucide-react';
 import API from '../../services/api';
+import toast from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, ArcElement,
@@ -47,9 +48,11 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 
 const ReportsAnalytics = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState('reports');
   const [year, setYear] = useState(new Date().getFullYear());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   // Reports data
   const [typeCounts, setTypeCounts] = useState({});
@@ -75,53 +78,92 @@ const ReportsAnalytics = () => {
     packageCommissions: []
   });
 
-  const refreshData = () => {
-    setRefreshKey(prev => prev + 1);
+  const fetchData = async () => {
+    const isManual = refreshing;
+    try {
+      console.log('🔄 Fetching analytics data...');
+      const [repRes, commRes, mostRes] = await Promise.all([
+        API.get(`/analytics/reports?year=${year}`),
+        API.get(`/analytics/commission-summary?year=${year}`),
+        API.get(`/analytics/most-booked-items?year=${year}`).catch(() => ({ data: {} }))
+      ]);
+
+      console.log('📊 Reports data:', repRes.data);
+      console.log('💰 Commission data:', commRes.data);
+      console.log('🏆 Most booked data:', mostRes.data);
+
+      const r = repRes.data;
+      setTypeCounts(r.typeCounts || {});
+      setTypePercentages(r.typePercentages || {});
+      setMonthlyByType(r.monthlyByType || {});
+      setTotalBookings(r.total || 0);
+      setTotalRevenue(r.totalRevenue || 0);
+
+      const c = commRes.data;
+      setTotalCommission(c.totalCommission || 0);
+      setTotalHotelComm(c.totalHotelCommission || 0);
+      setTotalGuideComm(c.totalGuideCommission || 0);
+      setTotalVehicleComm(c.totalVehicleCommission || 0);
+      setMonthlyBreakdown(c.monthlyBreakdown || {});
+
+      const m = mostRes.data || {};
+      setMostBooked({
+        hotels: m.hotels || [],
+        vehicles: m.vehicles || [],
+        guides: m.guides || [],
+        packages: m.packages || [],
+        hotelCommissions: m.hotelCommissions || [],
+        vehicleCommissions: m.vehicleCommissions || [],
+        guideCommissions: m.guideCommissions || [],
+        packageCommissions: m.packageCommissions || []
+      });
+      setLastUpdated(new Date().toLocaleTimeString());
+
+      if (isManual) {
+        toast.success('Reports refreshed successfully!');
+      }
+    } catch (err) {
+      console.error('❌ Analytics fetch error:', err);
+      if (isManual) {
+        toast.error('Failed to refresh reports. Check network connection.');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [repRes, commRes, mostRes] = await Promise.all([
-          API.get(`/analytics/reports?year=${year}`),
-          API.get(`/analytics/commission-summary?year=${year}`),
-          API.get(`/analytics/most-booked-items?year=${year}`).catch(() => ({ data: {} }))
-        ]);
-
-        const r = repRes.data;
-        setTypeCounts(r.typeCounts || {});
-        setTypePercentages(r.typePercentages || {});
-        setMonthlyByType(r.monthlyByType || {});
-        setTotalBookings(r.total || 0);
-        setTotalRevenue(r.totalRevenue || 0);
-
-        const c = commRes.data;
-        setTotalCommission(c.totalCommission || 0);
-        setTotalHotelComm(c.totalHotelCommission || 0);
-        setTotalGuideComm(c.totalGuideCommission || 0);
-        setTotalVehicleComm(c.totalVehicleCommission || 0);
-        setMonthlyBreakdown(c.monthlyBreakdown || {});
-
-        const m = mostRes.data || {};
-        setMostBooked({
-          hotels: m.hotels || [],
-          vehicles: m.vehicles || [],
-          guides: m.guides || [],
-          packages: m.packages || [],
-          hotelCommissions: m.hotelCommissions || [],
-          vehicleCommissions: m.vehicleCommissions || [],
-          guideCommissions: m.guideCommissions || [],
-          packageCommissions: m.packageCommissions || []
-        });
-      } catch (err) {
-        console.error('Analytics fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [year, refreshKey]);
+
+  // Auto‑refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        console.log('⏰ Auto-refresh triggered');
+        setRefreshKey(prev => prev + 1);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Refresh when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ Tab became visible – refreshing');
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setRefreshKey(prev => prev + 1);
+  };
 
   const handleDownloadPDF = () => {
     window.print();
@@ -244,7 +286,10 @@ const ReportsAnalytics = () => {
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-primary">Reports & Analytics</h1>
-          <p className="text-sm text-gray-500 mt-1">Annual overview of confirmed bookings and commission earnings</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Annual overview of confirmed bookings and commission earnings
+            {lastUpdated && <span className="ml-2 text-xs text-gray-400">(Updated: {lastUpdated})</span>}
+          </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-field text-sm py-2 px-3 w-28">
@@ -258,8 +303,8 @@ const ReportsAnalytics = () => {
               <TrendingUp size={16} /> Commission
             </button>
           </div>
-          <button onClick={refreshData} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition shadow-sm">
-            <RefreshCw size={16} /> Refresh
+          <button onClick={handleRefresh} disabled={refreshing} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-secondary transition shadow-sm disabled:opacity-60">
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button onClick={handleDownloadPDF} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition shadow-sm">
             <Download size={16} /> Download PDF
@@ -396,7 +441,6 @@ const ReportsAnalytics = () => {
             </div>
           </div>
 
-          {/* ⭐ Commission by Item – the charts you requested ⭐ */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="font-semibold text-primary mb-3">Hotel Commission by Item</h2>
