@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreditCard, DollarSign, Lock, Calendar, Shield, CheckCircle, User } from 'lucide-react';
+import { CreditCard, DollarSign, Lock, Calendar, Shield, CheckCircle, User, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
 
@@ -106,6 +106,27 @@ const Payment = () => {
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---- Cancel Booking ----
+  const handleCancel = async () => {
+    if (!booking) return;
+    const confirmCancel = window.confirm('Are you sure you want to cancel this booking? This action cannot be undone.');
+    if (!confirmCancel) return;
+
+    setLoading(true);
+    try {
+      // Delete the booking from the database
+      await API.delete(`/bookings/${booking.id}`);
+      // Clear session storage
+      sessionStorage.removeItem('pendingBooking');
+      toast.success('Booking cancelled successfully.');
+      navigate('/');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to cancel booking. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -229,22 +250,32 @@ const Payment = () => {
                   <span className="text-gray-600">Your payment details are encrypted and never stored fully.</span>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition flex items-center justify-center gap-2 mt-6"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={18} /> Pay Rs {booking.totalAmount?.toLocaleString()}
-                    </>
-                  )}
-                </button>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Pay Rs {booking.totalAmount?.toLocaleString()}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={loading}
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2"
+                  >
+                    <XCircle size={18} /> Cancel Booking
+                  </button>
+                </div>
               </form>
             </div>
           </div>
