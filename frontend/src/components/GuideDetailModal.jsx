@@ -4,6 +4,11 @@ import FeedbackModal from './FeedbackModal';
 import API, { getImageUrl } from '../services/api';
 import toast from 'react-hot-toast';
 
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-800 border-green-300' },
+  unavailable: { label: 'Unavailable', className: 'bg-red-100 text-red-800 border-red-300' },
+};
+
 const GuideDetailModal = ({ isOpen, onClose, guide }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
@@ -21,11 +26,16 @@ const GuideDetailModal = ({ isOpen, onClose, guide }) => {
 
   if (!isOpen || !guide) return null;
 
+  const statusInfo = statusConfig[guide.status] || statusConfig.available;
+
   const handleAddFeedback = async ({ guideId, rating, comment }) => {
     await API.post('/feedback/guide', { guideId, rating, comment });
     toast.success('Review submitted');
     loadFeedbacks();
   };
+
+  // Determine if phone or email exists to show the section
+  const hasContact = guide.phone || guide.email || guide.whatsapp;
 
   return (
     <>
@@ -37,7 +47,12 @@ const GuideDetailModal = ({ isOpen, onClose, guide }) => {
             {guide.popular && (<div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">🔥 Popular</div>)}
           </div>
           <div className="p-6">
-            <h2 className="text-3xl font-bold text-primary mb-2">{guide.name}</h2>
+            <div className="flex justify-between items-start">
+              <h2 className="text-3xl font-bold text-primary mb-2">{guide.name}</h2>
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            </div>
             <div className="flex items-center gap-4 text-gray-600 mb-4">
               <span className="flex items-center gap-1"><MapPin size={16} /> {guide.location || 'Sri Lanka'}</span>
               <span className="flex items-center gap-1"><Star size={16} className="text-yellow-500" /> {guide.rating} / 5</span>
@@ -49,8 +64,39 @@ const GuideDetailModal = ({ isOpen, onClose, guide }) => {
               <div className="bg-gray-50 p-3 rounded-xl text-center"><DollarSign size={20} className="mx-auto text-primary mb-1" /><p className="text-sm text-gray-500">Rate</p><p className="font-semibold text-primary">Rs {guide.pricePerDay?.toLocaleString()}/day</p></div>
               <div className="bg-gray-50 p-3 rounded-xl text-center"><Sparkles size={20} className="mx-auto text-primary mb-1" /><p className="text-sm text-gray-500">Tour Type</p><p className="font-semibold">{guide.tourType || 'Private'}</p></div>
             </div>
-            <div className="mb-6"><h3 className="font-bold text-lg mb-2">About {guide.name}</h3><p className="text-gray-600">{guide.description || 'Experienced local guide passionate about sharing Sri Lankan culture and history.'}</p></div>
-            <div className="mb-6"><h3 className="font-bold text-lg mb-2">Contact Information</h3><div className="space-y-2"><p className="flex items-center gap-2"><Phone size={16} className="text-primary" /> {guide.phone || '+94 XX XXX XXXX'}</p><p className="flex items-center gap-2"><Mail size={16} className="text-primary" /> {guide.email || 'contact@example.com'}</p><p className="flex items-center gap-2"><MessageCircle size={16} className="text-primary" /> WhatsApp available</p></div></div>
+
+            <div className="mb-6">
+              <h3 className="font-bold text-lg mb-2">About {guide.name}</h3>
+              <p className="text-gray-600">{guide.description || 'Experienced local guide passionate about sharing Sri Lankan culture and history.'}</p>
+            </div>
+
+            {/* Contact Information – only if any contact field exists */}
+            {hasContact && (
+              <div className="mb-6">
+                <h3 className="font-bold text-lg mb-2">Contact Information</h3>
+                <div className="space-y-2">
+                  {guide.phone && (
+                    <p className="flex items-center gap-2">
+                      <Phone size={16} className="text-primary" />
+                      <a href={`tel:${guide.phone}`} className="text-primary hover:underline">{guide.phone}</a>
+                    </p>
+                  )}
+                  {guide.email && (
+                    <p className="flex items-center gap-2">
+                      <Mail size={16} className="text-primary" />
+                      <a href={`mailto:${guide.email}`} className="text-primary hover:underline">{guide.email}</a>
+                    </p>
+                  )}
+                  {guide.whatsapp && (
+                    <p className="flex items-center gap-2">
+                      <MessageCircle size={16} className="text-primary" />
+                      <span>WhatsApp available</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 mt-6">
               <button onClick={onClose} className="btn-outline flex-1">Close</button>
               <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>

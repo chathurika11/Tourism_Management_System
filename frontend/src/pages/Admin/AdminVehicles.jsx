@@ -30,22 +30,17 @@ const AdminVehicles = () => {
     supportHours: '24/7',
     pickupLocations: '',
     includedFeatures: '',
-    securityDeposit: '',
-    depositRefundable: true,
-    location: '',
-    district: '',
+    // Multiple locations and districts (comma separated)
+    locationsStr: '',
+    districtsStr: '',
     status: 'available',
   });
 
   // Prefill from provider request
   useEffect(() => {
     if (prefill && Object.keys(prefill).length > 0) {
-      let imageUrl = '';
-      if (prefill.images && Array.isArray(prefill.images) && prefill.images.length > 0) {
-        imageUrl = prefill.images[0];
-      } else if (prefill.image) {
-        imageUrl = prefill.image;
-      }
+      const locationsStr = (prefill.locations || []).join(', ');
+      const districtsStr = (prefill.districts || []).join(', ');
 
       setFormData({
         type: prefill.type || '',
@@ -59,13 +54,17 @@ const AdminVehicles = () => {
         supportHours: prefill.supportHours || '24/7',
         pickupLocations: Array.isArray(prefill.pickupLocations) ? prefill.pickupLocations.join(', ') : (prefill.pickupLocations || ''),
         includedFeatures: Array.isArray(prefill.includedFeatures) ? prefill.includedFeatures.join(', ') : (prefill.includedFeatures || ''),
-        securityDeposit: prefill.securityDeposit || '',
-        depositRefundable: prefill.depositRefundable !== undefined ? prefill.depositRefundable : true,
-        location: prefill.location || '',
-        district: prefill.district || '',
+        locationsStr: locationsStr,
+        districtsStr: districtsStr,
         status: prefill.status || 'available',
       });
 
+      let imageUrl = '';
+      if (prefill.images && Array.isArray(prefill.images) && prefill.images.length > 0) {
+        imageUrl = prefill.images[0];
+      } else if (prefill.image) {
+        imageUrl = prefill.image;
+      }
       if (imageUrl) {
         setImagePreview(imageUrl);
         setPreserveImage(true);
@@ -94,7 +93,6 @@ const AdminVehicles = () => {
       toast.success('Vehicle added successfully!');
       resetModal();
 
-      // If this came from a provider request, approve it now
       if (providerRequestId) {
         try {
           await API.put(`/provider-requests/${providerRequestId}/approve`);
@@ -159,11 +157,20 @@ const AdminVehicles = () => {
     fd.append('supportHours', formData.supportHours);
     fd.append('pickupLocations', formData.pickupLocations);
     fd.append('includedFeatures', formData.includedFeatures);
-    fd.append('securityDeposit', formData.securityDeposit);
-    fd.append('depositRefundable', formData.depositRefundable);
-    fd.append('location', formData.location);
-    fd.append('district', formData.district);
     fd.append('status', formData.status);
+
+    // Convert comma‑separated strings to JSON arrays
+    const locationsArray = formData.locationsStr.split(',').map(s => s.trim()).filter(Boolean);
+    const districtsArray = formData.districtsStr.split(',').map(s => s.trim()).filter(Boolean);
+    fd.append('locations', JSON.stringify(locationsArray));
+    fd.append('districts', JSON.stringify(districtsArray));
+
+    // For backward compatibility, send first location/district if available
+    fd.append('location', locationsArray.length ? locationsArray[0] : '');
+    fd.append('district', districtsArray.length ? districtsArray[0] : '');
+    // Default security deposit and refundable (hidden from UI but sent)
+    fd.append('securityDeposit', '0');
+    fd.append('depositRefundable', 'true');
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
@@ -183,6 +190,9 @@ const AdminVehicles = () => {
 
   const handleEdit = (vehicle) => {
     setEditingVehicle(vehicle);
+    const locationsStr = (vehicle.locations || []).join(', ');
+    const districtsStr = (vehicle.districts || []).join(', ');
+
     setFormData({
       type: vehicle.type,
       model: vehicle.model,
@@ -195,10 +205,8 @@ const AdminVehicles = () => {
       supportHours: vehicle.supportHours || '24/7',
       pickupLocations: (vehicle.pickupLocations || []).join(', '),
       includedFeatures: (vehicle.includedFeatures || []).join(', '),
-      securityDeposit: vehicle.securityDeposit || '',
-      depositRefundable: vehicle.depositRefundable,
-      location: vehicle.location,
-      district: vehicle.district,
+      locationsStr: locationsStr,
+      districtsStr: districtsStr,
       status: vehicle.status,
     });
     setImagePreview(getImageUrl(vehicle.image));
@@ -225,10 +233,8 @@ const AdminVehicles = () => {
       supportHours: '24/7',
       pickupLocations: '',
       includedFeatures: '',
-      securityDeposit: '',
-      depositRefundable: true,
-      location: '',
-      district: '',
+      locationsStr: '',
+      districtsStr: '',
       status: 'available',
     });
   };
@@ -266,8 +272,13 @@ const AdminVehicles = () => {
                   <Star size={14} className="text-cta fill-current" /> {vehicle.rating}
                 </span>
               </div>
-              <p className="text-gray-500 text-sm">{vehicle.type} • {vehicle.location}</p>
+              <p className="text-gray-500 text-sm">{vehicle.type} • {vehicle.locations && vehicle.locations.length > 0 ? vehicle.locations.join(', ') : vehicle.location}</p>
               <p className="text-primary font-bold mt-2">Rs {vehicle.pricePerDay.toLocaleString()}/day</p>
+              {vehicle.districts && vehicle.districts.length > 0 && (
+                <div className="mt-1 text-xs text-gray-500">
+                  Districts: {vehicle.districts.join(', ')}
+                </div>
+              )}
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => handleEdit(vehicle)}
@@ -399,34 +410,29 @@ const AdminVehicles = () => {
                     placeholder="24/7"
                   />
                 </div>
-                <div>
-                  <label className="block font-medium mb-1">Location *</label>
+                <div className="md:col-span-2">
+                  <label className="block font-medium mb-1">Multiple Locations (comma separated) *</label>
                   <input
                     type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    value={formData.locationsStr}
+                    onChange={(e) => setFormData({ ...formData, locationsStr: e.target.value })}
                     className="input-field"
+                    placeholder="e.g., Colombo, Kandy, Galle"
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">Enter locations where this vehicle is available.</p>
                 </div>
-                <div>
-                  <label className="block font-medium mb-1">District *</label>
+                <div className="md:col-span-2">
+                  <label className="block font-medium mb-1">Multiple Districts (comma separated) *</label>
                   <input
                     type="text"
-                    value={formData.district}
-                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                    value={formData.districtsStr}
+                    onChange={(e) => setFormData({ ...formData, districtsStr: e.target.value })}
                     className="input-field"
+                    placeholder="e.g., Western, Central, Southern"
                     required
                   />
-                </div>
-                <div>
-                  <label className="block font-medium mb-1">Security Deposit (Rs)</label>
-                  <input
-                    type="number"
-                    value={formData.securityDeposit}
-                    onChange={(e) => setFormData({ ...formData, securityDeposit: e.target.value })}
-                    className="input-field"
-                  />
+                  <p className="text-xs text-gray-500 mt-1">Enter districts where this vehicle is available.</p>
                 </div>
                 <div>
                   <label className="block font-medium mb-1">Status</label>
@@ -450,15 +456,6 @@ const AdminVehicles = () => {
                     className="w-4 h-4"
                   />
                   Insurance Included
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.depositRefundable}
-                    onChange={(e) => setFormData({ ...formData, depositRefundable: e.target.checked })}
-                    className="w-4 h-4"
-                  />
-                  Deposit Refundable
                 </label>
               </div>
               <div>

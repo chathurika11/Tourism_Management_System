@@ -29,12 +29,12 @@ const AdminHotels = () => {
     checkOut: '12:00 PM',
     freeCancellationHours: '48',
     breakfastIncluded: false,
+    status: 'available',   // ✅ added status
   });
 
   // Prefill from provider request
   useEffect(() => {
     if (prefill && Object.keys(prefill).length > 0) {
-      // Extract amenities from prefill – could be array or string
       let amenitiesStr = '';
       if (prefill.amenities) {
         if (Array.isArray(prefill.amenities)) {
@@ -61,6 +61,7 @@ const AdminHotels = () => {
         checkOut: prefill.checkOut || '12:00 PM',
         freeCancellationHours: prefill.freeCancellationHours || '48',
         breakfastIncluded: prefill.breakfastIncluded || false,
+        status: prefill.status || 'available',   // ✅ status
       });
 
       if (imageUrl) {
@@ -103,7 +104,6 @@ const AdminHotels = () => {
       refreshAll();
       resetModal();
 
-      // If this came from a provider request, approve it now
       if (providerRequestId) {
         try {
           await API.put(`/provider-requests/${providerRequestId}/approve`);
@@ -165,6 +165,7 @@ const AdminHotels = () => {
     fd.append('checkOut', formData.checkOut);
     fd.append('freeCancellationHours', formData.freeCancellationHours);
     fd.append('breakfastIncluded', formData.breakfastIncluded);
+    fd.append('status', formData.status);   // ✅ status
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
@@ -200,6 +201,7 @@ const AdminHotels = () => {
       checkOut: hotel.checkOut || '12:00 PM',
       freeCancellationHours: hotel.freeCancellationHours || '48',
       breakfastIncluded: hotel.breakfastIncluded || false,
+      status: hotel.status || 'available',   // ✅ status
     });
     setImagePreview(getImageUrl(hotel.image));
     setImageFile(null);
@@ -223,6 +225,7 @@ const AdminHotels = () => {
       checkOut: '12:00 PM',
       freeCancellationHours: '48',
       breakfastIncluded: false,
+      status: 'available',
     });
   };
 
@@ -423,6 +426,17 @@ const AdminHotels = () => {
                   rows="3"
                   placeholder="Free WiFi, Pool, Spa, Restaurant, Parking"
                 />
+              </div>
+              <div>
+                <label className="block font-medium mb-1">Status</label>   {/* ✅ Status Dropdown */}
+                <select
+                  value={formData.status || 'available'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
               </div>
               <div>
                 <label className="block font-medium mb-1">Hotel Image (max 2MB)</label>

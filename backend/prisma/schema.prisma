@@ -125,17 +125,23 @@ model Vehicle {
   securityDeposit   Float    @default(0)
   depositRefundable Boolean  @default(true)
   rating            Float    @default(0)
-  location          String   // ← only one location field
-  district          String   // ← only one district field
-  status            String   @default("available")  // ← only one status field
+  
+  // ---- NEW: multiple locations and districts ----
+  locations         String[] @default([])   // e.g., ["Colombo", "Kandy"]
+  districts         String[] @default([])   // e.g., ["Western", "Central"]
+  // Keep old fields for backward compatibility (will be deprecated)
+  location          String   @default("")
+  district          String   @default("")
+  
+  status            String   @default("available")
   image             String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   tourPackages      TourPackage[]
   feedbacks         VehicleFeedback[]
 
-  @@index([district])
-  @@index([type])
+  @@index([districts])
+  @@index([locations])
   @@index([status])
 }
 
@@ -159,6 +165,7 @@ model Hotel {
   breakfastIncluded      Boolean   @default(false)
   tourPackages           TourPackage[]
   feedbacks              HotelFeedback[]
+  status        String    @default("available")   // "available" or "unavailable"
 
   @@index([district])
   @@index([rating])
@@ -183,6 +190,10 @@ model Guide {
   updatedAt     DateTime  @updatedAt
   tourPackages  TourPackage[]
   feedbacks     GuideFeedback[]
+  status        String    @default("available")   // "available" or "unavailable"
+  phone     String?   @default("")
+  email     String?   @default("")
+  whatsapp  Boolean?  @default(false)
 
   @@index([district])
   @@index([popular])
@@ -309,6 +320,8 @@ model TourPackage {
   feedbacks     TourFeedback[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  status        String    @default("available")   // "available" or "unavailable"
+
 }
 
 

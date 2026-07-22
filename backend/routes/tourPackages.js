@@ -19,7 +19,7 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-// ---------- PUBLIC: get tour packages with pagination ----------
+// GET / – public listing with status included
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
           popular: true,
           mealPlan: true,
           inclusions: true,
-          // include hotel/vehicle/guide only if needed for display
+          status: true,   // ✅ status included
           hotel: { select: { id: true, name: true } },
           vehicle: { select: { id: true, model: true, type: true } },
           guide: { select: { id: true, name: true, specialty: true } },
@@ -64,17 +64,17 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single package (full details)
+// GET /:id – single package with full details
 router.get('/:id', async (req, res) => {
   const pkg = await prisma.tourPackage.findUnique({
     where: { id: req.params.id },
     include: { hotel: true, vehicle: true, guide: true }
   });
   if (!pkg) return res.status(404).json({ error: 'Package not found' });
-  res.json(pkg);
+  res.json(pkg); // status is included automatically
 });
 
-// Reference endpoints (unchanged but ensure they use indexes)
+// Reference endpoints (unchanged)
 router.get('/reference/hotels/:district', adminOnly, async (req, res) => {
   const hotels = await prisma.hotel.findMany({
     where: {
@@ -117,7 +117,7 @@ router.get('/reference/guides/:district', adminOnly, async (req, res) => {
   res.json(guides);
 });
 
-// ---------- ADMIN CRUD ----------
+// ADMIN CRUD – status handling
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
@@ -126,31 +126,27 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
     const hotelIds = req.body.hotelIds ? JSON.parse(req.body.hotelIds) : [];
     const vehicleIds = req.body.vehicleIds ? JSON.parse(req.body.vehicleIds) : [];
     const guideIds = req.body.guideIds ? JSON.parse(req.body.guideIds) : [];
-     
-    console.log(req.body);
 
-    const selectedDistrict =
-  req.body.district ||
-  req.body.location ||
-  (req.body.destinations ? JSON.parse(req.body.destinations)?.[0]?.district : null);
+    const selectedDistrict = req.body.district || req.body.location || (req.body.destinations ? JSON.parse(req.body.destinations)?.[0]?.district : null);
 
-const data = {
-  name: req.body.name,
-  description: req.body.description,
-  duration: req.body.duration,
-  district: selectedDistrict || 'Kandy',
-  maxPeople: req.body.maxPeople || "10",
-  bestSeason: req.body.bestSeason || null,
-  location: selectedDistrict || 'Kandy',
-  price: parseFloat(req.body.price),
-  popular: req.body.popular === 'true',
-  image: imageUrl,
-  mealPlan: mealPlan.join(', '),
-  inclusions: inclusions,
-  hotelId: hotelIds[0] || null,
-  vehicleId: vehicleIds[0] || null,
-  guideId: guideIds[0] || null,
-};
+    const data = {
+      name: req.body.name,
+      description: req.body.description,
+      duration: req.body.duration,
+      district: selectedDistrict || 'Kandy',
+      maxPeople: req.body.maxPeople || "10",
+      bestSeason: req.body.bestSeason || null,
+      location: selectedDistrict || 'Kandy',
+      price: parseFloat(req.body.price),
+      popular: req.body.popular === 'true',
+      image: imageUrl,
+      mealPlan: mealPlan.join(', '),
+      inclusions: inclusions,
+      hotelId: hotelIds[0] || null,
+      vehicleId: vehicleIds[0] || null,
+      guideId: guideIds[0] || null,
+      status: req.body.status || 'available',   // ✅ status
+    };
     const pkg = await prisma.tourPackage.create({ data });
     await logAudit(req, 'PACKAGE_CREATED', 'TourPackage', pkg.id, {
       description: `Added ${pkg.name} tour package`,
@@ -188,6 +184,7 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
       hotelId: hotelIds[0] || null,
       vehicleId: vehicleIds[0] || null,
       guideId: guideIds[0] || null,
+      status: req.body.status || existing.status || 'available',   // ✅ status
     };
     if (req.file) data.image = `/uploads/${req.file.filename}`;
     const pkg = await prisma.tourPackage.update({ where: { id: req.params.id }, data });
@@ -205,21 +202,13 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
 router.delete('/:id', adminOnly, async (req, res) => {
   try {
     const pkg = await prisma.tourPackage.findUnique({ where: { id: req.params.id } });
-    if (!pkg) {
-      return res.status(404).json({ error: 'Tour package not found' });
-    }
-
-    // Delete associated feedbacks first to prevent foreign key constraint failures
+    if (!pkg) return res.status(404).json({ error: 'Package not found' });
     await prisma.tourFeedback.deleteMany({ where: { tourId: req.params.id } });
-
-    // Delete the tour package
     await prisma.tourPackage.delete({ where: { id: req.params.id } });
-
     await logAudit(req, 'PACKAGE_DELETED', 'TourPackage', req.params.id, {
       description: `Deleted ${pkg.name} tour package`,
       name: pkg.name,
     });
-
     res.json({ message: 'Package deleted successfully' });
   } catch (error) {
     console.error('❌ DELETE /tour-packages/:id error:', error);

@@ -5,6 +5,11 @@ import { getTourById } from '../data/tourismData';
 import TourFeedbackModal from '../components/TourFeedbackModal';
 import { useTour } from '../context/TourContext';
 
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-800 border-green-300' },
+  unavailable: { label: 'Unavailable', className: 'bg-red-100 text-red-800 border-red-300' },
+};
+
 const TourDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -22,6 +27,9 @@ const TourDetailPage = () => {
       </div>
     );
   }
+
+  const statusInfo = statusConfig[tour.status] || statusConfig.available;
+  const isAvailable = tour.status === 'available';
 
   // Calculate pricing
   const days = parseInt(tour.duration.split(' ')[0]) || 5;
@@ -55,11 +63,17 @@ const TourDetailPage = () => {
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">{tour.name}</h1>
+            <div className="flex justify-between items-start">
+              <h1 className="text-3xl font-bold text-primary mb-2">{tour.name}</h1>
+              {/* Status Badge */}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            </div>
             <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={18} /> {tour.location}</div>
             <div className="flex items-center gap-1 mb-6"><Star size={18} className="text-cta fill-current" /><span className="font-semibold">{tour.rating}</span><span className="text-gray-500">(124 reviews)</span></div>
 
-            {/* Simplified Pricing Section */}
+            {/* Pricing Section */}
             <div className="bg-gradient-to-r from-green-50 to-gray-50 rounded-lg p-5 mb-6 border border-green-100">
               <h3 className="font-bold text-lg text-primary mb-3 flex items-center gap-2"><DollarSign size={18} /> Package Price</h3>
               
@@ -78,6 +92,11 @@ const TourDetailPage = () => {
                 </div>
                 <p className="text-xs text-green-600 mt-2 flex items-center gap-1"><TrendingDown size={12} /> You save Rs {discountAmount.toLocaleString()} with this package!</p>
               </div>
+              {!isAvailable && (
+                <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                  ⚠️ This package is currently unavailable.
+                </div>
+              )}
             </div>
 
             <div className="mb-6"><h3 className="font-bold text-lg mb-3">Description</h3><p className="text-gray-600">{tour.description}</p></div>
@@ -108,7 +127,11 @@ const TourDetailPage = () => {
                 <div key={feedback.id} className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-semibold text-primary">{feedback.userName}</span>
-                    <div className="flex items-center gap-1">{[...Array(5)].map((_, i) => (<Star key={i} size={14} className={i < feedback.rating ? 'text-cta fill-current' : 'text-gray-300'} />))}</div>
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={14} className={i < feedback.rating ? 'text-cta fill-current' : 'text-gray-300'} />
+                      ))}
+                    </div>
                   </div>
                   <p className="text-gray-600 text-sm mb-2">{feedback.comment}</p>
                   <p className="text-xs text-gray-400">{feedback.date}</p>
@@ -119,7 +142,13 @@ const TourDetailPage = () => {
         </div>
       </div>
 
-      <TourFeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} onSubmit={handleAddFeedback} tourName={tour.name} tourId={tour.id} />
+      <TourFeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        onSubmit={handleAddFeedback}
+        tourName={tour.name}
+        tourId={tour.id}
+      />
     </>
   );
 };

@@ -4,6 +4,12 @@ import FeedbackModal from './FeedbackModal';
 import API, { getImageUrl } from '../services/api';
 import toast from 'react-hot-toast';
 
+// Status configuration
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-800 border-green-300' },
+  unavailable: { label: 'Unavailable', className: 'bg-red-100 text-red-800 border-red-300' },
+};
+
 const HotelDetailModal = ({ isOpen, onClose, hotel }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
@@ -23,6 +29,7 @@ const HotelDetailModal = ({ isOpen, onClose, hotel }) => {
 
   if (!isOpen || !hotel) return null;
 
+  const statusInfo = statusConfig[hotel.status] || statusConfig.available;
   const amenities = hotel.amenities || [];
 
   const formatPrice = (price) => {
@@ -45,7 +52,13 @@ const HotelDetailModal = ({ isOpen, onClose, hotel }) => {
           </button>
           <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-72 object-cover rounded-t-3xl" />
           <div className="p-6 md:p-8">
-            <h2 className="text-3xl font-bold text-primary mb-2">{hotel.name}</h2>
+            <div className="flex justify-between items-start">
+              <h2 className="text-3xl font-bold text-primary mb-2">{hotel.name}</h2>
+              {/* Status Badge */}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            </div>
             <div className="flex items-center gap-2 text-gray-600 mb-4">
               <MapPin size={18} /> {hotel.location}
               <span className="ml-4 flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full">
@@ -81,6 +94,11 @@ const HotelDetailModal = ({ isOpen, onClose, hotel }) => {
                 <span className="text-gray-600">Price per night</span>
                 <span className="text-3xl font-bold text-primary">Rs {formatPrice(hotel.pricePerNight)}</span>
               </div>
+              {hotel.status === 'unavailable' && (
+                <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ This hotel is currently unavailable.
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={onClose} className="btn-outline flex-1">Close</button>

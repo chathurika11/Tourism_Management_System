@@ -42,42 +42,51 @@ router.get('/', async (req, res) => {
     const skip = (page - 1) * limit;
 
     const [hotels, total] = await Promise.all([
-      prisma.hotel.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      prisma.hotel.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
       prisma.hotel.count()
     ]);
 
     res.json({ data: hotels, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
+    console.error('❌ GET /hotels error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // GET single hotel
 router.get('/:id', async (req, res) => {
-  const hotel = await prisma.hotel.findUnique({ where: { id: req.params.id } });
-  if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
-  res.json(hotel);
+  try {
+    const hotel = await prisma.hotel.findUnique({ where: { id: req.params.id } });
+    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
+    res.json(hotel);
+  } catch (error) {
+    console.error('❌ GET /hotel/:id error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST create hotel (admin only)
-// POST /hotels (admin only)
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
-    // If a file was uploaded, use its path; otherwise use the provided imageUrl
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || '');
-    const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
+    const amenitiesArray = req.body.amenities ? JSON.parse(req.body.amenities) : [];
     const data = {
       name: req.body.name,
       location: req.body.location,
       district: req.body.district,
       pricePerNight: parseFloat(req.body.pricePerNight),
-      amenities,
+      amenities: amenitiesArray,
       image: imageUrl,
+      popular: req.body.popular === 'true',
       checkIn: req.body.checkIn || '2:00 PM',
       checkOut: req.body.checkOut || '12:00 PM',
       freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
       breakfastIncluded: req.body.breakfastIncluded === 'true',
-      rating: 0
+      status: req.body.status || 'available',   // ✅ status added
     };
     const hotel = await prisma.hotel.create({ data });
     await logAudit(req, 'HOTEL_CREATED', 'Hotel', hotel.id, {
@@ -86,24 +95,27 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
     });
     res.status(201).json(hotel);
   } catch (error) {
+    console.error('❌ POST /hotels error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// PUT /hotels/:id
+// PUT update hotel (admin only)
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
-    const amenities = req.body.amenities ? JSON.parse(req.body.amenities) : [];
+    const amenitiesArray = req.body.amenities ? JSON.parse(req.body.amenities) : [];
     const data = {
       name: req.body.name,
       location: req.body.location,
       district: req.body.district,
       pricePerNight: parseFloat(req.body.pricePerNight),
-      amenities,
+      amenities: amenitiesArray,
+      popular: req.body.popular === 'true',
       checkIn: req.body.checkIn || '2:00 PM',
       checkOut: req.body.checkOut || '12:00 PM',
       freeCancellationHours: parseInt(req.body.freeCancellationHours) || 48,
       breakfastIncluded: req.body.breakfastIncluded === 'true',
+      status: req.body.status || 'available',   // ✅ status added
     };
     if (req.file) {
       data.image = `/uploads/${req.file.filename}`;
@@ -117,6 +129,7 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
     });
     res.json(hotel);
   } catch (error) {
+    console.error('❌ PUT /hotels/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -132,17 +145,13 @@ router.delete('/:id', adminOnly, async (req, res) => {
       where: { hotelId: req.params.id },
       data: { hotelId: null }
     });
-
     // Delete associated feedbacks
     await prisma.hotelFeedback.deleteMany({ where: { hotelId: req.params.id } });
-
     await prisma.hotel.delete({ where: { id: req.params.id } });
-
     await logAudit(req, 'HOTEL_DELETED', 'Hotel', req.params.id, {
       description: `Deleted ${hotel.name} hotel`,
       name: hotel.name,
     });
-
     res.json({ message: 'Hotel deleted successfully' });
   } catch (error) {
     console.error('❌ DELETE /hotels/:id error:', error);

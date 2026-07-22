@@ -21,6 +21,7 @@ const AdminTourPackages = () => {
     mealPlan: [],
     inclusions: [],
     destinations: [],
+    status: 'available',   // ✅ Status field added
   });
 
   const [districts, setDistricts] = useState([]);
@@ -164,6 +165,7 @@ const AdminTourPackages = () => {
     fd.append('popular', formData.popular);
     fd.append('mealPlan', JSON.stringify(formData.mealPlan));
     fd.append('inclusions', JSON.stringify(formData.inclusions));
+    fd.append('status', formData.status);   // ✅ Status appended
     const destinationsToSend = formData.destinations.map(({ id, ...rest }) => rest);
     fd.append('destinations', JSON.stringify(destinationsToSend));
     if (imageFile) fd.append('image', imageFile);
@@ -186,6 +188,7 @@ const AdminTourPackages = () => {
       mealPlan: pkg.mealPlan ? pkg.mealPlan.split(', ') : [],
       inclusions: pkg.inclusions || [],
       destinations: (pkg.destinations || []).map((d, idx) => ({ ...d, id: Date.now() + idx })),
+      status: pkg.status || 'available',   // ✅ status from existing package
     });
     setImagePreview(getImageUrl(pkg.image));
     setShowModal(true);
@@ -205,6 +208,7 @@ const AdminTourPackages = () => {
       mealPlan: [],
       inclusions: [],
       destinations: [],
+      status: 'available',
     });
   };
 
@@ -273,6 +277,19 @@ const AdminTourPackages = () => {
               <div><label>Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="input-field" rows="3" required /></div>
               <div><label>Meal Plan (multi-select)</label><Select isMulti options={mealPlanOptions} value={mealPlanOptions.filter(opt => formData.mealPlan.includes(opt.value))} onChange={(selected) => setFormData({...formData, mealPlan: selected.map(s => s.value)})} /></div>
               <div><label>Inclusions (multi-select)</label><Select isMulti options={inclusionOptions} value={inclusionOptions.filter(opt => formData.inclusions.includes(opt.value))} onChange={(selected) => setFormData({...formData, inclusions: selected.map(s => s.value)})} /></div>
+
+              {/* ✅ Status Dropdown – exactly like AdminHotels, AdminVehicles, AdminGuides */}
+              <div>
+                <label className="block font-medium mb-1">Status</label>
+                <select
+                  value={formData.status || 'available'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
 
               <div className="border-t pt-4">
                 <div className="flex justify-between items-center mb-3">

@@ -25,11 +25,18 @@ router.get('/', async (req, res) => {
     const { district } = req.query;
 
     if (district) {
+      // Search across old fields and new arrays
       const vehicles = await prisma.vehicle.findMany({
         where: {
           OR: [
             { district: { contains: district, mode: 'insensitive' } },
-            { location: { contains: district, mode: 'insensitive' } }
+            { location: { contains: district, mode: 'insensitive' } },
+            { districts: { has: district } }, // exact match in array
+            { locations: { has: district } },
+            // For partial matches inside arrays (MongoDB specific)
+            // If you need partial matching, use $regex via raw query or use Prisma's `$elemMatch` with `contains`
+            // Since Prisma doesn't support $elemMatch with contains directly on arrays of strings,
+            // we'll rely on the exact match for now.
           ]
         },
         orderBy: { rating: 'desc' }
@@ -65,12 +72,31 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create vehicle (admin only) – supports imageUrl fallback
+// POST create vehicle (admin only) – supports locations and districts arrays
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || '');
     const pickupLocations = req.body.pickupLocations ? req.body.pickupLocations.split(',').map(s => s.trim()) : [];
     const includedFeatures = req.body.includedFeatures ? req.body.includedFeatures.split(',').map(s => s.trim()) : [];
+    
+    // Parse locations and districts arrays from request
+    let locations = [];
+    let districts = [];
+    if (req.body.locations) {
+      try { locations = JSON.parse(req.body.locations); } catch (e) { locations = []; }
+    } else if (req.body.locationsStr) {
+      locations = req.body.locationsStr.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (req.body.districts) {
+      try { districts = JSON.parse(req.body.districts); } catch (e) { districts = []; }
+    } else if (req.body.districtsStr) {
+      districts = req.body.districtsStr.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    // Fallback to single location/district if arrays are empty
+    if (locations.length === 0 && req.body.location) locations = [req.body.location];
+    if (districts.length === 0 && req.body.district) districts = [req.body.district];
+
     const data = {
       type: req.body.type,
       model: req.body.model,
@@ -85,8 +111,10 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       includedFeatures,
       securityDeposit: parseFloat(req.body.securityDeposit) || 0,
       depositRefundable: req.body.depositRefundable === 'true',
-      location: req.body.location,
-      district: req.body.district,
+      location: req.body.location || (locations.length ? locations[0] : ''),
+      district: req.body.district || (districts.length ? districts[0] : ''),
+      locations: locations,
+      districts: districts,
       status: req.body.status || 'available',
       image: imageUrl,
       rating: 0
@@ -103,11 +131,29 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
-// PUT update vehicle (admin only) – supports imageUrl fallback
+// PUT update vehicle (admin only) – supports arrays
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const pickupLocations = req.body.pickupLocations ? req.body.pickupLocations.split(',').map(s => s.trim()) : [];
     const includedFeatures = req.body.includedFeatures ? req.body.includedFeatures.split(',').map(s => s.trim()) : [];
+    
+    let locations = [];
+    let districts = [];
+    if (req.body.locations) {
+      try { locations = JSON.parse(req.body.locations); } catch (e) { locations = []; }
+    } else if (req.body.locationsStr) {
+      locations = req.body.locationsStr.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (req.body.districts) {
+      try { districts = JSON.parse(req.body.districts); } catch (e) { districts = []; }
+    } else if (req.body.districtsStr) {
+      districts = req.body.districtsStr.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    // Fallback to single location/district if arrays are empty
+    if (locations.length === 0 && req.body.location) locations = [req.body.location];
+    if (districts.length === 0 && req.body.district) districts = [req.body.district];
+
     const data = {
       type: req.body.type,
       model: req.body.model,
@@ -122,8 +168,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
       includedFeatures,
       securityDeposit: parseFloat(req.body.securityDeposit) || 0,
       depositRefundable: req.body.depositRefundable === 'true',
-      location: req.body.location,
-      district: req.body.district,
+      location: req.body.location || (locations.length ? locations[0] : ''),
+      district: req.body.district || (districts.length ? districts[0] : ''),
+      locations: locations,
+      districts: districts,
       status: req.body.status || 'available',
     };
     if (req.file) {
@@ -149,13 +197,11 @@ router.delete('/:id', adminOnly, async (req, res) => {
     const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
     if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
 
-    // Set vehicleId to null in referencing TourPackages
     await prisma.tourPackage.updateMany({
       where: { vehicleId: req.params.id },
       data: { vehicleId: null }
     });
 
-    // Delete associated feedbacks
     await prisma.vehicleFeedback.deleteMany({ where: { vehicleId: req.params.id } });
 
     await prisma.vehicle.delete({ where: { id: req.params.id } });

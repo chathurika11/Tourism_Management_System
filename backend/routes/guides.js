@@ -69,7 +69,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create guide (admin only) – supports imageUrl fallback
+// POST create guide
 router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || '');
@@ -86,7 +86,11 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
       pricePerDay: parseFloat(req.body.pricePerDay),
       popular: req.body.popular === 'true',
       description: req.body.description || '',
-      image: imageUrl
+      image: imageUrl,
+      status: req.body.status || 'available',
+      phone: req.body.phone || '',
+      email: req.body.email || '',
+      whatsapp: req.body.whatsapp === 'true',   // ✅ added contact fields
     };
     const guide = await prisma.guide.create({ data });
     await logAudit(req, 'GUIDE_CREATED', 'Guide', guide.id, {
@@ -100,7 +104,7 @@ router.post('/', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
-// PUT update guide (admin only) – supports imageUrl fallback
+// PUT update guide
 router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   try {
     const data = {
@@ -114,6 +118,10 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
       pricePerDay: parseFloat(req.body.pricePerDay),
       popular: req.body.popular === 'true',
       description: req.body.description || '',
+      status: req.body.status || 'available',
+      phone: req.body.phone || '',
+      email: req.body.email || '',
+      whatsapp: req.body.whatsapp === 'true',   // ✅ updated
     };
     if (req.file) {
       data.image = `/uploads/${req.file.filename}`;
@@ -132,6 +140,7 @@ router.put('/:id', adminOnly, upload.single('image'), async (req, res) => {
   }
 });
 
+
 // DELETE guide (admin only)
 router.delete('/:id', adminOnly, async (req, res) => {
   try {
@@ -143,10 +152,8 @@ router.delete('/:id', adminOnly, async (req, res) => {
       where: { guideId: req.params.id },
       data: { guideId: null }
     });
-
     // Delete associated feedbacks
     await prisma.guideFeedback.deleteMany({ where: { guideId: req.params.id } });
-
     await prisma.guide.delete({ where: { id: req.params.id } });
     await logAudit(req, 'GUIDE_DELETED', 'Guide', req.params.id, {
       description: `Deleted ${guide.name} guide`,

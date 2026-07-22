@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Star, MapPin, ArrowLeft, Wifi, Coffee, Home, Car, Users } from 'lucide-react';
 import { getHotelById } from '../data/tourismData';
-import FeedbackModal from '../components/FeedbackModal';   // ← fixed path
+import FeedbackModal from '../components/FeedbackModal';
 import { useTour } from '../context/TourContext';
+
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-800 border-green-300' },
+  unavailable: { label: 'Unavailable', className: 'bg-red-100 text-red-800 border-red-300' },
+};
 
 const HotelDetailPage = () => {
   const { id } = useParams();
@@ -22,6 +27,8 @@ const HotelDetailPage = () => {
       </div>
     );
   }
+
+  const statusInfo = statusConfig[hotel.status] || statusConfig.available;
 
   const amenities = [
     { icon: Wifi, name: 'Free WiFi' },
@@ -48,7 +55,13 @@ const HotelDetailPage = () => {
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold text-primary mb-2">{hotel.name}</h1>
+            <div className="flex justify-between items-start">
+              <h1 className="text-3xl font-bold text-primary mb-2">{hotel.name}</h1>
+              {/* Status Badge */}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                {statusInfo.label}
+              </span>
+            </div>
             <div className="flex items-center gap-2 text-gray-600 mb-4">
               <MapPin size={18} /> {hotel.location}
             </div>
@@ -64,6 +77,11 @@ const HotelDetailPage = () => {
                 <span className="text-gray-600">Price per night</span>
                 <span className="text-3xl font-bold text-primary">Rs {hotel.pricePerNight.toLocaleString()}</span>
               </div>
+              {hotel.status === 'unavailable' && (
+                <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                  ⚠️ This hotel is currently unavailable.
+                </div>
+              )}
               <div className="border-t pt-4">
                 <p className="text-sm text-gray-500">Free cancellation • Breakfast included</p>
               </div>

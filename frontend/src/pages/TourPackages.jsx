@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import {
   Star, MapPin, Eye, Search, Calendar, Users, Utensils, Package,
@@ -8,36 +7,67 @@ import {
 } from 'lucide-react';
 import API, { getImageUrl } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import tourPackagesBg from '../images/TourPackagesBackground.jpg';
 
+// Status configuration
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-700 border-green-200' },
+  unavailable: { label: 'Unavailable', className: 'bg-red-100 text-red-700 border-red-200' },
+};
+
 // --- Package Card (memoized) ---
-const PackageCard = React.memo(({ pkg, onViewDetails }) => (
-  <div className="group bg-white rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative">
-    <div className="relative overflow-hidden h-64">
-      <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg flex items-center gap-1">
-        <Star size={14} className="fill-current" /> {pkg.popular ? 'Popular' : 'Standard'}
+const PackageCard = React.memo(({ pkg, onViewDetails }) => {
+  const statusInfo = statusConfig[pkg.status] || statusConfig.available;
+  
+  return (
+    <div className="group bg-white rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative">
+      <div className="relative overflow-hidden h-64">
+        <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        {/* Status Badge on Card */}
+        <div className="absolute top-4 right-4 flex flex-col gap-1">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border shadow-md ${statusInfo.className}`}>
+            {statusInfo.label}
+          </span>
+        </div>
+        {pkg.popular && (
+          <div className="absolute top-4 left-4 bg-gradient-to-r from-red-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md flex items-center gap-1">
+            🔥 Popular
+          </div>
+        )}
+      </div>
+      <div className="p-6">
+        <div className="flex justify-between items-start">
+          <h3 className="font-bold text-xl text-primary group-hover:text-secondary transition-colors line-clamp-1">{pkg.name}</h3>
+          <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+            <Star size={14} className="text-cta fill-current" /> {pkg.rating?.toFixed(1) || 'N/A'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-gray-500 mt-1"><MapPin size={16} /> {pkg.district}</div>
+        <div className="flex flex-wrap gap-2 mt-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Calendar size={12} /> {pkg.duration} days</span>
+          <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Users size={12} /> Max {pkg.maxPeople}</span>
+          <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Utensils size={12} /> {pkg.mealPlan || 'N/A'}</span>
+        </div>
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+          <div>
+            <span className="text-2xl font-bold text-primary">Rs {pkg.price.toLocaleString()}</span>
+            <p className="text-xs text-gray-500">per package</p>
+          </div>
+          <button
+            onClick={() => onViewDetails(pkg)}
+            className="bg-primary text-white px-5 py-2 rounded-xl hover:bg-secondary transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"
+            disabled={pkg.status === 'unavailable'}
+          >
+            <Eye size={16} /> {pkg.status === 'unavailable' ? 'Unavailable' : 'View Details'}
+          </button>
+        </div>
       </div>
     </div>
-    <div className="p-6">
-      <h3 className="font-bold text-xl text-primary group-hover:text-secondary transition-colors">{pkg.name}</h3>
-      <div className="flex items-center gap-2 text-gray-500 mt-1"><MapPin size={16} /> {pkg.district}</div>
-      <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
-        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Calendar size={12} /> {pkg.duration} days</span>
-        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Users size={12} /> Max {pkg.maxPeople}</span>
-        <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"><Utensils size={12} /> {pkg.mealPlan || 'N/A'}</span>
-      </div>
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-        <div><span className="text-2xl font-bold text-primary">Rs {pkg.price.toLocaleString()}</span><p className="text-xs text-gray-500">per package</p></div>
-        <button onClick={() => onViewDetails(pkg)} className="bg-primary text-white px-5 py-2 rounded-xl hover:bg-secondary transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg">
-          <Eye size={16} /> View Details
-        </button>
-      </div>
-    </div>
-  </div>
-));
+  );
+});
 
 // --- Package Detail Modal ---
 const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
@@ -61,6 +91,8 @@ const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
 
   if (!isOpen || !pkg) return null;
 
+  const statusInfo = statusConfig[pkg.status] || statusConfig.available;
+  const isAvailable = pkg.status === 'available';
   const durationDays = parseInt(pkg.duration) || 1;
   const getEndDate = (start) => {
     if (!start) return null;
@@ -159,7 +191,13 @@ const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
           <>
             <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-72 object-cover rounded-t-3xl" />
             <div className="p-6 md:p-8">
-              <h2 className="text-3xl font-bold text-primary mb-2">{pkg.name}</h2>
+              <div className="flex justify-between items-start">
+                <h2 className="text-3xl font-bold text-primary mb-2">{pkg.name}</h2>
+                {/* Status Badge */}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                  {statusInfo.label}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-gray-600 mb-4"><MapPin size={18} /> {pkg.district}</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-3">
@@ -174,6 +212,11 @@ const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
                   {pkg.guide && <div className="flex items-center gap-2"><BookOpen size={18} className="text-primary" /> Guide: {pkg.guide.name}</div>}
                 </div>
               </div>
+              {pkg.status === 'unavailable' && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm border border-red-200">
+                  ⚠️ This package is currently unavailable.
+                </div>
+              )}
               <div className="mb-6"><h3 className="font-bold text-lg mb-2">Description</h3><p className="text-gray-700">{pkg.description}</p></div>
               {pkg.inclusions && pkg.inclusions.length > 0 && (
                 <div className="mb-6"><h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Package size={18} className="text-green-600" /> Inclusions</h3>
@@ -187,7 +230,13 @@ const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
               <div className="flex gap-3 mt-6">
                 <button onClick={onClose} className="btn-outline flex-1">Close</button>
                 <button onClick={() => setShowFeedbackModal(true)} className="btn-secondary flex-1">Write a Review</button>
-                <button onClick={() => setStep(2)} className="btn-primary flex-1">Book Now →</button>
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={!isAvailable}
+                  className={`btn-primary flex-1 ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isAvailable ? 'Book Now →' : 'Unavailable'}
+                </button>
               </div>
             </div>
             <div className="border-t border-gray-100 p-6 bg-gray-50">
@@ -254,7 +303,7 @@ const PackageDetailModal = ({ isOpen, onClose, pkg, onAddFeedback }) => {
               )}
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setStep(1)} className="btn-outline flex-1">Back</button>
-                <button onClick={handleBookNow} disabled={loading} className="btn-primary flex-1">
+                <button onClick={handleBookNow} disabled={loading || !isAvailable} className="btn-primary flex-1">
                   {loading ? 'Creating Booking...' : 'Confirm Booking →'}
                 </button>
               </div>

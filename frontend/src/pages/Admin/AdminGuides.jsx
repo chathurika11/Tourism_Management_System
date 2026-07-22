@@ -29,6 +29,10 @@ const AdminGuides = () => {
     pricePerDay: '',
     popular: false,
     description: '',
+    status: 'available',
+    phone: '',          // ✅ new
+    email: '',          // ✅ new
+    whatsapp: false,    // ✅ new
   });
 
   // Prefill from provider request
@@ -53,6 +57,10 @@ const AdminGuides = () => {
         pricePerDay: prefill.pricePerDay || prefill.price || '',
         popular: prefill.popular || false,
         description: description,
+        status: prefill.status || 'available',
+        phone: prefill.phone || '',
+        email: prefill.email || '',
+        whatsapp: prefill.whatsapp || false,
       });
 
       if (imageUrl) {
@@ -74,7 +82,7 @@ const AdminGuides = () => {
   const guides = data?.data || [];
   const totalPages = data?.totalPages || 1;
 
-  // ---- Mutation: Create guide ----
+  // ---- Mutations (create, update, delete) ----
   const createMutation = useMutation({
     mutationFn: (fd) => API.post('/guides', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
     onSuccess: async (res) => {
@@ -82,24 +90,21 @@ const AdminGuides = () => {
       queryClient.invalidateQueries(['guides']);
       refetch();
       toast.success('Guide added successfully!');
+      resetModal();
 
-      // If this came from a provider request, approve it now
       if (providerRequestId) {
         try {
           await API.put(`/provider-requests/${providerRequestId}/approve`);
           toast.success('Provider request approved!');
-          // Remove the state to avoid re-triggering
           navigate(location.pathname, { replace: true, state: {} });
         } catch (err) {
           toast.error('Failed to approve provider request: ' + err.response?.data?.error);
         }
       }
-      resetModal();
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add guide'),
   });
 
-  // ---- Mutation: Update guide ----
   const updateMutation = useMutation({
     mutationFn: ({ id, fd }) =>
       API.put(`/guides/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -113,7 +118,6 @@ const AdminGuides = () => {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update guide'),
   });
 
-  // ---- Mutation: Delete guide ----
   const deleteMutation = useMutation({
     mutationFn: (id) => API.delete(`/guides/${id}`),
     onSuccess: () => {
@@ -125,7 +129,6 @@ const AdminGuides = () => {
     onError: () => toast.error('Failed to delete guide'),
   });
 
-  // ---- Image upload ----
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.size > 2 * 1024 * 1024) {
@@ -139,7 +142,6 @@ const AdminGuides = () => {
     }
   };
 
-  // ---- Submit ----
   const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -153,6 +155,10 @@ const AdminGuides = () => {
     fd.append('pricePerDay', formData.pricePerDay);
     fd.append('popular', formData.popular);
     fd.append('description', formData.description);
+    fd.append('status', formData.status);
+    fd.append('phone', formData.phone);          // ✅ new
+    fd.append('email', formData.email);          // ✅ new
+    fd.append('whatsapp', formData.whatsapp);    // ✅ new
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
@@ -164,14 +170,12 @@ const AdminGuides = () => {
     else createMutation.mutate(fd);
   };
 
-  // ---- Delete handler ----
   const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this guide?')) {
       deleteMutation.mutate(id);
     }
   };
 
-  // ---- Edit handler ----
   const handleEdit = (guide) => {
     setEditingGuide(guide);
     setFormData({
@@ -185,6 +189,10 @@ const AdminGuides = () => {
       pricePerDay: guide.pricePerDay,
       popular: guide.popular,
       description: guide.description || '',
+      status: guide.status || 'available',
+      phone: guide.phone || '',
+      email: guide.email || '',
+      whatsapp: guide.whatsapp || false,
     });
     setImagePreview(getImageUrl(guide.image));
     setImageFile(null);
@@ -192,7 +200,6 @@ const AdminGuides = () => {
     setShowModal(true);
   };
 
-  // ---- Reset modal ----
   const resetModal = () => {
     setShowModal(false);
     setEditingGuide(null);
@@ -210,6 +217,10 @@ const AdminGuides = () => {
       pricePerDay: '',
       popular: false,
       description: '',
+      status: 'available',
+      phone: '',
+      email: '',
+      whatsapp: false,
     });
   };
 
@@ -217,7 +228,6 @@ const AdminGuides = () => {
 
   return (
     <div>
-      {/* Header and table as before */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-primary">Manage Guides</h1>
         <button
@@ -228,7 +238,6 @@ const AdminGuides = () => {
         </button>
       </div>
 
-      {/* Guide cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {guides.map((guide) => (
           <div key={guide.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -269,7 +278,6 @@ const AdminGuides = () => {
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-8">
           <button
@@ -303,7 +311,6 @@ const AdminGuides = () => {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              {/* Form fields – same as before */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block font-medium mb-1">Full Name *</label>
@@ -395,6 +402,54 @@ const AdminGuides = () => {
                   rows="4"
                   placeholder="E.g., Deep local knowledge, personalized itineraries, and a passion for sharing Sri Lanka's rich heritage."
                 />
+              </div>
+
+              {/* Contact Information Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 pt-4 mt-2">
+                <h3 className="md:col-span-2 font-semibold text-primary">Contact Information</h3>
+                <div>
+                  <label className="block font-medium mb-1">Phone</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="input-field"
+                    placeholder="+94 XX XXX XXXX"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="input-field"
+                    placeholder="contact@example.com"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.whatsapp}
+                      onChange={(e) => setFormData({ ...formData, whatsapp: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    WhatsApp available
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium mb-1">Status</label>
+                <select
+                  value={formData.status || 'available'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
               </div>
               <label className="flex items-center gap-2">
                 <input

@@ -4,6 +4,13 @@ import FeedbackModal from './FeedbackModal';
 import API, { getImageUrl } from '../services/api';
 import toast from 'react-hot-toast';
 
+// Status mapping for display
+const statusConfig = {
+  available: { label: 'Available', className: 'bg-green-100 text-green-800 border-green-300' },
+  booked: { label: 'Booked', className: 'bg-red-100 text-red-800 border-red-300' },
+  maintenance: { label: 'Under Maintenance', className: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+};
+
 const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
@@ -20,6 +27,9 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   }, [isOpen, vehicle?.id, loadFeedbacks]);
 
   if (!isOpen || !vehicle) return null;
+
+  const statusInfo = statusConfig[vehicle.status] || statusConfig.available;
+  const isAvailable = vehicle.status === 'available';
 
   const handleAddFeedback = async ({ vehicleId, rating, comment }) => {
     await API.post('/feedback/vehicle', { vehicleId, rating, comment });
@@ -39,7 +49,13 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
               <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-full object-cover" />
             </div>
             <div className="p-6 md:p-8">
-              <h2 className="text-3xl font-bold text-primary mb-1">{vehicle.model}</h2>
+              <div className="flex justify-between items-start mb-1">
+                <h2 className="text-3xl font-bold text-primary">{vehicle.model}</h2>
+                {/* Status Badge */}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${statusInfo.className}`}>
+                  {statusInfo.label}
+                </span>
+              </div>
               <p className="text-secondary font-semibold mb-4 flex items-center gap-2"><Car size={18} /> {vehicle.type}</p>
               <div className="space-y-3 mb-6">
                 <div className="flex items-center gap-3 text-gray-700"><Users size={20} className="text-primary" /> {vehicle.passengers} Passengers</div>
@@ -51,6 +67,18 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                   <MapPin size={20} className="text-primary mt-0.5" /> Pickup: 
                   <span className="flex-1">{(vehicle.pickupLocations || []).join(', ')}</span>
                 </div>
+                {vehicle.districts && vehicle.districts.length > 0 && (
+                  <div className="flex items-start gap-3 text-gray-700">
+                    <MapPin size={20} className="text-primary mt-0.5" /> Districts: 
+                    <span className="flex-1">{vehicle.districts.join(', ')}</span>
+                  </div>
+                )}
+                {vehicle.locations && vehicle.locations.length > 0 && (
+                  <div className="flex items-start gap-3 text-gray-700">
+                    <MapPin size={20} className="text-primary mt-0.5" /> Locations: 
+                    <span className="flex-1">{vehicle.locations.join(', ')}</span>
+                  </div>
+                )}
               </div>
               {(vehicle.includedFeatures && vehicle.includedFeatures.length > 0) && (
                 <div className="border-t border-gray-100 pt-4 mb-4">
@@ -67,10 +95,11 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                   <span className="text-gray-600">Price per day</span>
                   <span className="text-3xl font-bold text-primary">Rs {vehicle.pricePerDay.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center mt-2 text-sm text-gray-500">
-                  <span>Security Deposit</span>
-                  <span>Rs {vehicle.securityDeposit?.toLocaleString() || 0} {vehicle.depositRefundable ? '(refundable)' : '(non-refundable)'}</span>
-                </div>
+                {!isAvailable && (
+                  <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    ⚠️ This vehicle is currently {statusInfo.label.toLowerCase()}.
+                  </div>
+                )}
               </div>
               <div className="flex gap-3">
                 <button onClick={onClose} className="btn-outline flex-1">Close</button>
