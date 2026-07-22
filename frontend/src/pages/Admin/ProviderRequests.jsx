@@ -11,6 +11,13 @@ const statusClass = {
   rejected: 'bg-red-100 text-red-700',
 };
 
+// Commission markup factors
+const MARKUP = {
+  guide: 1.25,   // 25%
+  hotel: 1.25,   // 25%
+  vehicle: 1.20, // 15%
+};
+
 const ProviderRequests = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -19,6 +26,7 @@ const ProviderRequests = () => {
   const [selected, setSelected] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  // ---- Fetch requests ----
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['provider-requests', status, providerType],
     queryFn: async () => {
@@ -35,15 +43,29 @@ const ProviderRequests = () => {
     queryClient.invalidateQueries({ queryKey: ['vehicles-admin'] });
   };
 
-  const approveMutation = useMutation({
-    mutationFn: (id) => API.put(`/provider-requests/${id}/approve`),
+  // ---- Prefill (redirect to add form without approving) ----
+  const prefillMutation = useMutation({
+    mutationFn: (id) => API.get(`/provider-requests/${id}/prefill`),
     onSuccess: (res) => {
-      const { providerType, prefill } = res.data;
-      toast.success('Request approved! Redirecting to add form...');
+      const { providerType, prefill, requestId } = res.data;
+      toast.success('Loading data for editing...');
       setSelected(null);
       refresh();
 
-      // Redirect to the appropriate add page with prefill data
+      // Apply commission markup to price
+      const markupFactor = MARKUP[providerType] || 1.0;
+      const updatedPrefill = { ...prefill, providerRequestId: requestId };
+
+      if (providerType === 'guide' && updatedPrefill.pricePerDay) {
+        updatedPrefill.pricePerDay = (parseFloat(updatedPrefill.pricePerDay) * markupFactor).toFixed(2);
+      } else if (providerType === 'hotel' && updatedPrefill.pricePerNight) {
+        updatedPrefill.pricePerNight = (parseFloat(updatedPrefill.pricePerNight) * markupFactor).toFixed(2);
+      } else if (providerType === 'vehicle' && updatedPrefill.pricePerDay) {
+        updatedPrefill.pricePerDay = (parseFloat(updatedPrefill.pricePerDay) * markupFactor).toFixed(2);
+      } else if (updatedPrefill.price) {
+        updatedPrefill.price = (parseFloat(updatedPrefill.price) * markupFactor).toFixed(2);
+      }
+
       const pathMap = {
         guide: '/admin/guides',
         hotel: '/admin/hotels',
@@ -51,23 +73,28 @@ const ProviderRequests = () => {
       };
       const path = pathMap[providerType];
       if (path) {
-        navigate(path, { state: { prefill, providerRequestId: res.data.request.id } });
+        navigate(path, { state: { prefill: updatedPrefill, providerRequestId: requestId } });
       } else {
         toast.error('Unknown provider type');
       }
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to approve request'),
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to load request data'),
   });
 
+  // ---- Reject ----
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }) => API.put(`/provider-requests/${id}/reject`, { rejectionReason: reason }),
+    mutationFn: ({ id, reason }) => {
+      return API.put(`/provider-requests/${id}/reject`, { rejectionReason: reason });
+    },
     onSuccess: () => {
       toast.success('Request rejected.');
       setSelected(null);
       setRejectionReason('');
       refresh();
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to reject request'),
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to reject request');
+    },
   });
 
   if (isLoading) return <div className="text-center py-20">Loading provider requests...</div>;
@@ -77,7 +104,7 @@ const ProviderRequests = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-primary">Provider Requests</h1>
-          <p className="text-sm text-gray-500">Approve partner registrations into guides, hotels, or vehicles.</p>
+          <p className="text-sm text-gray-500">Approve or reject partner registrations.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-field w-40">
@@ -95,6 +122,7 @@ const ProviderRequests = () => {
         </div>
       </div>
 
+      {/* ---- Table ---- */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -152,6 +180,7 @@ const ProviderRequests = () => {
         </div>
       </div>
 
+      {/* ---- Review Modal ---- */}
       {selected && (
         <div className="fixed inset-0 bg-black/50 z-50 p-4 flex items-center justify-center">
           <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -166,6 +195,7 @@ const ProviderRequests = () => {
             </div>
 
             <div className="p-5 space-y-5">
+              {/* ---- Images ---- */}
               {selected.images?.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {selected.images.map((image) => (
@@ -174,24 +204,29 @@ const ProviderRequests = () => {
                 </div>
               )}
 
+              {/* ---- Details ---- */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <Info label="Requester Name" value={selected.requesterName} />
                 <Info label="Email" value={selected.requesterEmail} />
                 <Info label="Phone" value={selected.requesterPhone} />
+                <Info label="Business Name" value={selected.businessName} />
                 <Info label="District" value={selected.district} />
                 <Info label="Location" value={selected.location} />
                 <Info label="Price" value={selected.price ? `Rs ${selected.price.toLocaleString()}` : '-'} />
                 <Info label="Status" value={selected.status} />
               </div>
 
-              <div>
-                <h3 className="font-semibold text-primary mb-2">Submitted Details</h3>
+              {/* ---- Submitted Data ---- */}
+              {selected.data && Object.keys(selected.data).length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  {Object.entries(selected.data || {}).map(([key, value]) => (
+                  <p className="text-xs uppercase tracking-wide text-gray-400 col-span-2">Submitted Details</p>
+                  {Object.entries(selected.data).map(([key, value]) => (
                     <Info key={key} label={key} value={Array.isArray(value) ? value.join(', ') : String(value ?? '-')} />
                   ))}
                 </div>
-              </div>
+              )}
 
+              {/* ---- Message ---- */}
               {selected.message && (
                 <div>
                   <h3 className="font-semibold text-primary mb-2">Message</h3>
@@ -199,6 +234,7 @@ const ProviderRequests = () => {
                 </div>
               )}
 
+              {/* ---- Actions (only for pending) ---- */}
               {selected.status === 'pending' && (
                 <div className="border-t pt-5 space-y-4">
                   <textarea
@@ -210,15 +246,15 @@ const ProviderRequests = () => {
                   />
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={() => approveMutation.mutate(selected.id)}
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
+                      onClick={() => prefillMutation.mutate(selected.id)}
+                      disabled={prefillMutation.isPending || rejectMutation.isPending}
                       className="btn-primary flex-1 flex items-center justify-center gap-2"
                     >
                       <Check size={18} /> Approve & Edit
                     </button>
                     <button
                       onClick={() => rejectMutation.mutate({ id: selected.id, reason: rejectionReason })}
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
+                      disabled={prefillMutation.isPending || rejectMutation.isPending}
                       className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg flex-1 flex items-center justify-center gap-2"
                     >
                       <X size={18} /> Reject
@@ -227,6 +263,7 @@ const ProviderRequests = () => {
                 </div>
               )}
 
+              {/* ---- Rejection Reason (if rejected) ---- */}
               {selected.status === 'rejected' && selected.rejectionReason && (
                 <div className="bg-red-50 text-red-700 rounded-lg p-4 text-sm">{selected.rejectionReason}</div>
               )}

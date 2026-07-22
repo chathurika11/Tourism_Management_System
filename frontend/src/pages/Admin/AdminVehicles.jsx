@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API, { getImageUrl } from '../../services/api';
@@ -8,7 +8,9 @@ import API, { getImageUrl } from '../../services/api';
 const AdminVehicles = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefill = useMemo(() => location.state?.prefill || {}, [location.state]);
+  const providerRequestId = useMemo(() => location.state?.providerRequestId || null, [location.state]);
 
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -38,33 +40,43 @@ const AdminVehicles = () => {
   // Prefill from provider request
   useEffect(() => {
     if (prefill && Object.keys(prefill).length > 0) {
+      let imageUrl = '';
+      if (prefill.images && Array.isArray(prefill.images) && prefill.images.length > 0) {
+        imageUrl = prefill.images[0];
+      } else if (prefill.image) {
+        imageUrl = prefill.image;
+      }
+
       setFormData({
         type: prefill.type || '',
-        model: prefill.model || '',
-        pricePerDay: prefill.pricePerDay || '',
+        model: prefill.model || prefill.businessName || '',
+        pricePerDay: prefill.pricePerDay || prefill.price || '',
         passengers: prefill.passengers || '',
         fuelType: prefill.fuelType || '',
         fuelEfficiency: prefill.fuelEfficiency || '',
         year: prefill.year || '',
         insuranceIncluded: prefill.insuranceIncluded !== undefined ? prefill.insuranceIncluded : true,
         supportHours: prefill.supportHours || '24/7',
-        pickupLocations: (prefill.pickupLocations || []).join(', '),
-        includedFeatures: (prefill.includedFeatures || []).join(', '),
+        pickupLocations: Array.isArray(prefill.pickupLocations) ? prefill.pickupLocations.join(', ') : (prefill.pickupLocations || ''),
+        includedFeatures: Array.isArray(prefill.includedFeatures) ? prefill.includedFeatures.join(', ') : (prefill.includedFeatures || ''),
         securityDeposit: prefill.securityDeposit || '',
         depositRefundable: prefill.depositRefundable !== undefined ? prefill.depositRefundable : true,
         location: prefill.location || '',
         district: prefill.district || '',
         status: prefill.status || 'available',
       });
-      if (prefill.image) {
-        setImagePreview(prefill.image);
+
+      if (imageUrl) {
+        setImagePreview(imageUrl);
         setPreserveImage(true);
       }
+
       setShowModal(true);
       toast('Prefilled from provider request – review and save');
     }
   }, [prefill]);
 
+  // Fetch vehicles
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['vehicles-admin', page],
     queryFn: () => API.get(`/vehicles?page=${page}&limit=10`).then((res) => res.data),
@@ -75,12 +87,23 @@ const AdminVehicles = () => {
 
   const createMutation = useMutation({
     mutationFn: (fd) => API.post('/vehicles', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       queryClient.invalidateQueries(['vehicles-admin']);
       queryClient.invalidateQueries(['vehicles']);
       refetch();
       toast.success('Vehicle added successfully!');
       resetModal();
+
+      // If this came from a provider request, approve it now
+      if (providerRequestId) {
+        try {
+          await API.put(`/provider-requests/${providerRequestId}/approve`);
+          toast.success('Provider request approved!');
+          navigate(location.pathname, { replace: true, state: {} });
+        } catch (err) {
+          toast.error('Failed to approve provider request: ' + err.response?.data?.error);
+        }
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add vehicle'),
   });
@@ -144,8 +167,8 @@ const AdminVehicles = () => {
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
-    } else if (preserveImage && prefill.image) {
-      fd.append('imageUrl', prefill.image);
+    } else if (preserveImage && imagePreview) {
+      fd.append('imageUrl', imagePreview);
     }
 
     if (editingVehicle) updateMutation.mutate({ id: editingVehicle.id, fd });
@@ -273,9 +296,7 @@ const AdminVehicles = () => {
           >
             Previous
           </button>
-          <span className="text-gray-600">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-gray-600">Page {page} of {totalPages}</span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}

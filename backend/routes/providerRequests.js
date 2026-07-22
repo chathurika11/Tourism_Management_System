@@ -93,12 +93,22 @@ const buildRequestData = (body, imageUrls) => {
   };
 };
 
-// markup rates
-const MARKUP = {
-  guide: 1.25,
-  hotel: 1.25,
-  vehicle: 1.20,
-};
+// ---- Middleware ----
+function adminOrStaff(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!['admin', 'staff'].includes(decoded.role)) {
+      return res.status(403).json({ error: 'Admin or staff only' });
+    }
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
 // ---- ROUTES ----
 
@@ -176,8 +186,131 @@ router.get('/', adminOrStaff, async (req, res) => {
   }
 });
 
-// PUT /:id – update a pending request (owner or admin/staff)
-router.put('/:id', async (req, res) => {
+// ---- NEW: GET prefill data without approving ----
+router.get('/:id/prefill', adminOrStaff, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.providerRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Request is not pending' });
+    }
+
+    // Build prefill data
+    const prefill = {
+      ...request.data,
+      requesterName: request.requesterName,
+      requesterEmail: request.requesterEmail,
+      requesterPhone: request.requesterPhone,
+      businessName: request.businessName,
+      district: request.district,
+      location: request.location,
+      price: request.price,
+      message: request.message,
+      images: request.images,
+    };
+
+    res.json({
+      providerType: request.providerType,
+      prefill: prefill,
+      requestId: request.id,
+    });
+  } catch (error) {
+    console.error('❌ Prefill error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---- APPROVE (used after add form submission) ----
+router.put('/:id/approve', adminOrStaff, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.providerRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'This request has already been processed' });
+    }
+
+    const updated = await prisma.providerRequest.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id,
+      },
+    });
+
+    // Build prefill data (for logging or response)
+    const prefill = {
+      ...request.data,
+      requesterName: request.requesterName,
+      requesterEmail: request.requesterEmail,
+      requesterPhone: request.requesterPhone,
+      businessName: request.businessName,
+      district: request.district,
+      location: request.location,
+      price: request.price,
+      message: request.message,
+      images: request.images,
+    };
+
+    await logAudit(req, 'PROVIDER_REQUEST_APPROVED', 'ProviderRequest', id, {
+      providerType: request.providerType,
+      businessName: request.businessName,
+    });
+
+    res.json({
+      providerType: request.providerType,
+      prefill: prefill,
+      request: updated,
+    });
+  } catch (error) {
+    console.error('❌ Approve error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---- REJECT ----
+router.put('/:id/reject', adminOrStaff, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const request = await prisma.providerRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'This request has already been processed' });
+    }
+
+    const updated = await prisma.providerRequest.update({
+      where: { id },
+      data: {
+        status: 'rejected',
+        rejectionReason: rejectionReason.trim(),
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id,
+      },
+    });
+
+    await logAudit(req, 'PROVIDER_REQUEST_REJECTED', 'ProviderRequest', id, {
+      providerType: request.providerType,
+      businessName: request.businessName,
+      rejectionReason: rejectionReason.trim(),
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('❌ Reject error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---- UPDATE (Edit) request ----
+router.put('/:id', adminOrStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const request = await prisma.providerRequest.findUnique({ where: { id } });
@@ -186,27 +319,6 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Cannot edit an approved or rejected request' });
     }
 
-    // Check ownership
-    const token = req.headers.authorization?.split(' ')[1];
-    let isAdmin = false;
-    let requesterEmail = null;
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (['admin', 'staff'].includes(decoded.role)) {
-          isAdmin = true;
-        }
-        if (decoded.email) {
-          requesterEmail = decoded.email;
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    if (!isAdmin && (!requesterEmail || request.requesterEmail !== requesterEmail)) {
-      return res.status(403).json({ error: 'You can only edit your own requests' });
-    }
-
-    // Build update data
     const { requesterName, requesterPhone, businessName, district, location, price, ...otherData } = req.body;
     const updateData = {
       requesterName: requesterName || request.requesterName,
@@ -231,69 +343,22 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /:id – cancel a pending request (owner or admin/staff)
-router.delete('/:id', async (req, res) => {
+// ---- DELETE (Cancel) request ----
+router.delete('/:id', adminOrStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const request = await prisma.providerRequest.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'Cannot cancel an approved or rejected request' });
-    }
-
-    // Check ownership
-    const token = req.headers.authorization?.split(' ')[1];
-    let isAdmin = false;
-    let requesterEmail = null;
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (['admin', 'staff'].includes(decoded.role)) {
-          isAdmin = true;
-        }
-        if (decoded.email) {
-          requesterEmail = decoded.email;
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    if (!isAdmin && (!requesterEmail || request.requesterEmail !== requesterEmail)) {
-      return res.status(403).json({ error: 'You can only cancel your own requests' });
+      return res.status(400).json({ error: 'Cannot delete an approved or rejected request' });
     }
 
     await prisma.providerRequest.delete({ where: { id } });
-    res.json({ message: 'Request cancelled successfully' });
+    res.json({ message: 'Request deleted successfully' });
   } catch (error) {
     console.error('❌ DELETE /provider-requests/:id error:', error);
     res.status(500).json({ error: error.message });
   }
 });
-
-// PUT /:id/approve – admin/staff approve (unchanged)
-router.put('/:id/approve', adminOrStaff, async (req, res) => {
-  // ... (same as before)
-});
-
-// PUT /:id/reject – admin/staff reject (unchanged)
-router.put('/:id/reject', adminOrStaff, async (req, res) => {
-  // ... (same as before)
-});
-
-// ---- Middleware ----
-function adminOrStaff(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!['admin', 'staff'].includes(decoded.role)) {
-      return res.status(403).json({ error: 'Admin or staff only' });
-    }
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-}
 
 module.exports = router;

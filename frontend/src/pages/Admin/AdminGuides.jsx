@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Upload, Star, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API, { getImageUrl } from '../../services/api';
@@ -8,7 +8,9 @@ import API, { getImageUrl } from '../../services/api';
 const AdminGuides = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefill = useMemo(() => location.state?.prefill || {}, [location.state]);
+  const providerRequestId = useMemo(() => location.state?.providerRequestId || null, [location.state]);
 
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -32,27 +34,38 @@ const AdminGuides = () => {
   // Prefill from provider request
   useEffect(() => {
     if (prefill && Object.keys(prefill).length > 0) {
+      const description = prefill.description || prefill.data?.description || '';
+      let imageUrl = '';
+      if (prefill.images && Array.isArray(prefill.images) && prefill.images.length > 0) {
+        imageUrl = prefill.images[0];
+      } else if (prefill.image) {
+        imageUrl = prefill.image;
+      }
+
       setFormData({
-        name: prefill.name || '',
+        name: prefill.name || prefill.businessName || '',
         specialty: prefill.specialty || '',
         district: prefill.district || '',
         location: prefill.location || '',
         language: prefill.language || '',
         experience: prefill.experience || '',
         certification: prefill.certification || '',
-        pricePerDay: prefill.pricePerDay || '',
+        pricePerDay: prefill.pricePerDay || prefill.price || '',
         popular: prefill.popular || false,
-        description: prefill.description || '',
+        description: description,
       });
-      if (prefill.image) {
-        setImagePreview(prefill.image);
+
+      if (imageUrl) {
+        setImagePreview(imageUrl);
         setPreserveImage(true);
       }
+
       setShowModal(true);
       toast('Prefilled from provider request – review and save');
     }
   }, [prefill]);
 
+  // ---- Fetch guides ----
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['guides-admin', page],
     queryFn: () => API.get(`/guides?page=${page}&limit=10`).then((res) => res.data),
@@ -61,18 +74,32 @@ const AdminGuides = () => {
   const guides = data?.data || [];
   const totalPages = data?.totalPages || 1;
 
+  // ---- Mutation: Create guide ----
   const createMutation = useMutation({
     mutationFn: (fd) => API.post('/guides', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       queryClient.invalidateQueries(['guides-admin']);
       queryClient.invalidateQueries(['guides']);
       refetch();
       toast.success('Guide added successfully!');
+
+      // If this came from a provider request, approve it now
+      if (providerRequestId) {
+        try {
+          await API.put(`/provider-requests/${providerRequestId}/approve`);
+          toast.success('Provider request approved!');
+          // Remove the state to avoid re-triggering
+          navigate(location.pathname, { replace: true, state: {} });
+        } catch (err) {
+          toast.error('Failed to approve provider request: ' + err.response?.data?.error);
+        }
+      }
       resetModal();
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add guide'),
   });
 
+  // ---- Mutation: Update guide ----
   const updateMutation = useMutation({
     mutationFn: ({ id, fd }) =>
       API.put(`/guides/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -86,6 +113,7 @@ const AdminGuides = () => {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update guide'),
   });
 
+  // ---- Mutation: Delete guide ----
   const deleteMutation = useMutation({
     mutationFn: (id) => API.delete(`/guides/${id}`),
     onSuccess: () => {
@@ -97,6 +125,7 @@ const AdminGuides = () => {
     onError: () => toast.error('Failed to delete guide'),
   });
 
+  // ---- Image upload ----
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.size > 2 * 1024 * 1024) {
@@ -110,6 +139,7 @@ const AdminGuides = () => {
     }
   };
 
+  // ---- Submit ----
   const handleSubmit = (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -126,20 +156,22 @@ const AdminGuides = () => {
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
-    } else if (preserveImage && prefill.image) {
-      fd.append('imageUrl', prefill.image);
+    } else if (preserveImage && imagePreview) {
+      fd.append('imageUrl', imagePreview);
     }
 
     if (editingGuide) updateMutation.mutate({ id: editingGuide.id, fd });
     else createMutation.mutate(fd);
   };
 
+  // ---- Delete handler ----
   const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this guide?')) {
       deleteMutation.mutate(id);
     }
   };
 
+  // ---- Edit handler ----
   const handleEdit = (guide) => {
     setEditingGuide(guide);
     setFormData({
@@ -160,6 +192,7 @@ const AdminGuides = () => {
     setShowModal(true);
   };
 
+  // ---- Reset modal ----
   const resetModal = () => {
     setShowModal(false);
     setEditingGuide(null);
@@ -184,6 +217,7 @@ const AdminGuides = () => {
 
   return (
     <div>
+      {/* Header and table as before */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-primary">Manage Guides</h1>
         <button
@@ -194,6 +228,7 @@ const AdminGuides = () => {
         </button>
       </div>
 
+      {/* Guide cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {guides.map((guide) => (
           <div key={guide.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -234,6 +269,7 @@ const AdminGuides = () => {
         ))}
       </div>
 
+      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-between items-center mt-8">
           <button
@@ -243,9 +279,7 @@ const AdminGuides = () => {
           >
             Previous
           </button>
-          <span className="text-gray-600">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-gray-600">Page {page} of {totalPages}</span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
@@ -269,6 +303,7 @@ const AdminGuides = () => {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {/* Form fields – same as before */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block font-medium mb-1">Full Name *</label>

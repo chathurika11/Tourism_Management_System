@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Upload, Star, Clock, MapPin, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API, { getImageUrl } from '../../services/api';
@@ -8,7 +8,9 @@ import API, { getImageUrl } from '../../services/api';
 const AdminHotels = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefill = useMemo(() => location.state?.prefill || {}, [location.state]);
+  const providerRequestId = useMemo(() => location.state?.providerRequestId || null, [location.state]);
 
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -32,21 +34,40 @@ const AdminHotels = () => {
   // Prefill from provider request
   useEffect(() => {
     if (prefill && Object.keys(prefill).length > 0) {
+      // Extract amenities from prefill – could be array or string
+      let amenitiesStr = '';
+      if (prefill.amenities) {
+        if (Array.isArray(prefill.amenities)) {
+          amenitiesStr = prefill.amenities.join(', ');
+        } else {
+          amenitiesStr = prefill.amenities;
+        }
+      }
+
+      let imageUrl = '';
+      if (prefill.images && Array.isArray(prefill.images) && prefill.images.length > 0) {
+        imageUrl = prefill.images[0];
+      } else if (prefill.image) {
+        imageUrl = prefill.image;
+      }
+
       setFormData({
-        name: prefill.name || '',
+        name: prefill.name || prefill.businessName || '',
         location: prefill.location || '',
         district: prefill.district || '',
-        pricePerNight: prefill.pricePerNight || '',
-        amenities: (prefill.amenities || []).join(', '),
+        pricePerNight: prefill.pricePerNight || prefill.price || '',
+        amenities: amenitiesStr,
         checkIn: prefill.checkIn || '2:00 PM',
         checkOut: prefill.checkOut || '12:00 PM',
         freeCancellationHours: prefill.freeCancellationHours || '48',
         breakfastIncluded: prefill.breakfastIncluded || false,
       });
-      if (prefill.image) {
-        setImagePreview(prefill.image);
+
+      if (imageUrl) {
+        setImagePreview(imageUrl);
         setPreserveImage(true);
       }
+
       setShowModal(true);
       toast('Prefilled from provider request – review and save');
     }
@@ -77,10 +98,21 @@ const AdminHotels = () => {
   // CREATE
   const createMutation = useMutation({
     mutationFn: (fd) => API.post('/hotels', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       toast.success('Hotel added successfully!');
-      resetModal();
       refreshAll();
+      resetModal();
+
+      // If this came from a provider request, approve it now
+      if (providerRequestId) {
+        try {
+          await API.put(`/provider-requests/${providerRequestId}/approve`);
+          toast.success('Provider request approved!');
+          navigate(location.pathname, { replace: true, state: {} });
+        } catch (err) {
+          toast.error('Failed to approve provider request: ' + err.response?.data?.error);
+        }
+      }
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to add hotel'),
   });
@@ -136,8 +168,8 @@ const AdminHotels = () => {
 
     if (imageFile && imageFile !== 'preserve') {
       fd.append('image', imageFile);
-    } else if (preserveImage && prefill.image) {
-      fd.append('imageUrl', prefill.image);
+    } else if (preserveImage && imagePreview) {
+      fd.append('imageUrl', imagePreview);
     }
 
     if (editingHotel) updateMutation.mutate({ id: editingHotel.id, fd });
@@ -276,9 +308,7 @@ const AdminHotels = () => {
           >
             Previous
           </button>
-          <span>
-            Page {page} of {totalPages}
-          </span>
+          <span>Page {page} of {totalPages}</span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}

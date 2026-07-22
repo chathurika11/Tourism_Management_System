@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Building2, Car, CheckCircle2, Clock, Search, Upload, UserRound, XCircle, Mail } from 'lucide-react';
+import React, { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { Building2, Car, Upload, UserRound, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
-import API, { getImageUrl } from '../services/api';
+import API from '../services/api';
 
 const initialForm = {
   providerType: 'guide',
@@ -39,60 +39,18 @@ const providerOptions = [
   { value: 'vehicle', label: 'Vehicle', icon: Car },
 ];
 
-const statusStyles = {
-  pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  approved: 'bg-green-50 text-green-700 border-green-200',
-  rejected: 'bg-red-50 text-red-700 border-red-200',
-};
-
-const statusIcons = {
-  pending: Clock,
-  approved: CheckCircle2,
-  rejected: XCircle,
-};
-
-const getStoredRequestIds = () => {
-  try {
-    return JSON.parse(localStorage.getItem('providerRequestIds') || '[]');
-  } catch {
-    return [];
-  }
-};
-
 const PartnerRegister = () => {
   const [formData, setFormData] = useState(initialForm);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
-  const [requestIds, setRequestIds] = useState(getStoredRequestIds);
-  const [lookupEmail, setLookupEmail] = useState('');
-  const [emailToSearch, setEmailToSearch] = useState('');
-
-  const idsQuery = useMemo(() => requestIds.join(','), [requestIds]);
-
-  const { data: myRequests = [], refetch, isFetching } = useQuery({
-    queryKey: ['my-provider-requests', idsQuery, emailToSearch],
-    queryFn: async () => {
-      if (!idsQuery && !emailToSearch) return [];
-      const params = new URLSearchParams();
-      if (idsQuery) params.set('ids', idsQuery);
-      if (emailToSearch) params.set('email', emailToSearch);
-      const res = await API.get(`/provider-requests/mine?${params.toString()}`);
-      return res.data;
-    },
-    enabled: Boolean(idsQuery || emailToSearch),
-  });
 
   const submitMutation = useMutation({
     mutationFn: (fd) => API.post('/provider-requests', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
-    onSuccess: (res) => {
-      const nextIds = Array.from(new Set([res.data.id, ...requestIds]));
-      setRequestIds(nextIds);
-      localStorage.setItem('providerRequestIds', JSON.stringify(nextIds));
+    onSuccess: () => {
       toast.success('Request sent to admin/staff for review.');
       setFormData(initialForm);
       setImages([]);
       setImagePreviews([]);
-      refetch();
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to submit request'),
   });
@@ -128,12 +86,6 @@ const PartnerRegister = () => {
     submitMutation.mutate(fd);
   };
 
-  const handleLookup = (e) => {
-    e.preventDefault();
-    setEmailToSearch(lookupEmail.trim());
-  };
-
-  // ---- Render form fields ----
   const renderSpecificFields = (formDataObj, setFormDataObj, providerType) => {
     const update = (field, value) => setFormDataObj((prev) => ({ ...prev, [field]: value }));
 
@@ -234,40 +186,37 @@ const PartnerRegister = () => {
             <Mail size={32} />
             <div>
               <h1 className="text-3xl md:text-4xl font-bold">Contact Us – Register as a Provider</h1>
-              <p className="text-white/80 max-w-2xl">Register your guide, hotel, or vehicle services. Your request will be reviewed by our team before publication.</p>
+              <p className="text-white/80 max-w-2xl">
+                Register your guide, hotel, or vehicle services. Your request will be reviewed by our team before publication.
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="container mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3 bg-white rounded-lg shadow p-6 mb-2">
-  <h2 className="text-2xl font-bold text-primary mb-4">
-    Contact Information
-  </h2>
+      <div className="container mx-auto px-4 py-10">
+        {/* Contact Information */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-2xl font-bold text-primary mb-4">Contact Information</h2>
+          <div className="space-y-3">
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold">📞 Phone</h3>
+              <p>+94 11 234 5678</p>
+            </div>
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold">📧 Email</h3>
+              <p>hello@serendigo.com</p>
+            </div>
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold">📍 Address</h3>
+              <p>Colombo, Sri Lanka</p>
+            </div>
+          </div>
+        </div>
 
-<div className="space-y-3">
-
-  <div className="border rounded-lg p-4">
-    <h3 className="font-semibold">📞 Phone</h3>
-    <p>+94 11 234 5678</p>
-  </div>
-
-  <div className="border rounded-lg p-4">
-    <h3 className="font-semibold">📧 Email</h3>
-    <p>hello@serendigo.com</p>
-  </div>
-
-  <div className="border rounded-lg p-4">
-    <h3 className="font-semibold">📍 Address</h3>
-    <p>Colombo, Sri Lanka</p>
-  </div>
-
-</div>
-  </div>
-
-        {/* Main Form */}
-        <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white rounded-lg shadow p-6 space-y-5">
+        {/* Registration Form */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-5 max-w-4xl mx-auto">
+          {/* Provider Type Selection */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {providerOptions.map((option) => {
               const Icon = option.icon;
@@ -277,7 +226,9 @@ const PartnerRegister = () => {
                   key={option.value}
                   type="button"
                   onClick={() => updateField('providerType', option.value)}
-                  className={`border rounded-lg p-4 flex items-center justify-center gap-2 transition ${active ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-primary text-gray-700'}`}
+                  className={`border rounded-lg p-4 flex items-center justify-center gap-2 transition ${
+                    active ? 'border-primary bg-primary text-white' : 'border-gray-200 hover:border-primary text-gray-700'
+                  }`}
                 >
                   <Icon size={20} /> {option.label}
                 </button>
@@ -285,45 +236,101 @@ const PartnerRegister = () => {
             })}
           </div>
 
+          {/* Common Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name:</label>
-              <input className="input-field" value={formData.requesterName} onChange={(e) => updateField('requesterName', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+              <input
+                className="input-field"
+                value={formData.requesterName}
+                onChange={(e) => updateField('requesterName', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email (must be @gmail.com):</label>
-              <input className="input-field" type="email" value={formData.requesterEmail} onChange={(e) => updateField('requesterEmail', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email (must be @gmail.com) *</label>
+              <input
+                className="input-field"
+                type="email"
+                value={formData.requesterEmail}
+                onChange={(e) => updateField('requesterEmail', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone (+94xxxxxxxxx):</label>
-              <input className="input-field" value={formData.requesterPhone} onChange={(e) => updateField('requesterPhone', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone (+94xxxxxxxxx) *</label>
+              <input
+                className="input-field"
+                value={formData.requesterPhone}
+                onChange={(e) => updateField('requesterPhone', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{formData.providerType === 'vehicle' ? 'Vehicle model' : 'Business / display name'}:</label>
-              <input className="input-field" value={formData.businessName} onChange={(e) => updateField('businessName', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {formData.providerType === 'vehicle' ? 'Vehicle model' : 'Business / display name'} *
+              </label>
+              <input
+                className="input-field"
+                value={formData.businessName}
+                onChange={(e) => updateField('businessName', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">District:</label>
-              <input className="input-field" value={formData.district} onChange={(e) => updateField('district', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">District *</label>
+              <input
+                className="input-field"
+                value={formData.district}
+                onChange={(e) => updateField('district', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location / service area:</label>
-              <input className="input-field" value={formData.location} onChange={(e) => updateField('location', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Location / service area *</label>
+              <input
+                className="input-field"
+                value={formData.location}
+                onChange={(e) => updateField('location', e.target.value)}
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{formData.providerType === 'hotel' ? 'Price per night (Rs)' : 'Price per day (Rs)'}:</label>
-              <input className="input-field" type="number" value={formData.price} onChange={(e) => updateField('price', e.target.value)} required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {formData.providerType === 'hotel' ? 'Price per night (Rs)' : 'Price per day (Rs)'} *
+              </label>
+              <input
+                className="input-field"
+                type="number"
+                value={formData.price}
+                onChange={(e) => updateField('price', e.target.value)}
+                required
+              />
             </div>
             {renderSpecificFields(formData, setFormData, formData.providerType)}
           </div>
 
+          {/* Additional message */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Additional message:</label>
-            <textarea className="input-field" rows="4" value={formData.message} onChange={(e) => updateField('message', e.target.value)} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Additional message</label>
+            <textarea
+              className="input-field"
+              rows="4"
+              value={formData.message}
+              onChange={(e) => updateField('message', e.target.value)}
+            />
           </div>
 
+          {/* Image upload */}
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-5">
-            <input id="partner-images" className="hidden" type="file" accept="image/*" multiple onChange={handleImages} />
+            <input
+              id="partner-images"
+              className="hidden"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImages}
+            />
             <label htmlFor="partner-images" className="cursor-pointer flex flex-col items-center text-gray-600">
               <Upload size={32} />
               <span className="mt-2 text-sm">Upload photos (max 5, 2MB each)</span>
@@ -337,54 +344,14 @@ const PartnerRegister = () => {
             )}
           </div>
 
-          <button type="submit" disabled={submitMutation.isPending} className="btn-primary w-full py-3">
+          <button
+            type="submit"
+            disabled={submitMutation.isPending}
+            className="btn-primary w-full py-3"
+          >
             {submitMutation.isPending ? 'Sending...' : 'Send Request'}
           </button>
         </form>
-
-        {/* Sidebar – Your Requests */}
-        <aside className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-5">
-            <h2 className="text-xl font-bold text-primary mb-3">Check Request Status</h2>
-            <form onSubmit={handleLookup} className="flex gap-2">
-              <input className="input-field" type="email" placeholder="Email address" value={lookupEmail} onChange={(e) => setLookupEmail(e.target.value)} />
-              <button className="btn-primary px-4" aria-label="Search request status">
-                <Search size={18} />
-              </button>
-            </form>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-bold text-primary">Your Requests</h2>
-              {isFetching && <span className="text-xs text-gray-500">Refreshing...</span>}
-            </div>
-            <div className="space-y-3">
-              {myRequests.length === 0 && <p className="text-sm text-gray-500">Submitted requests from this browser or searched email will appear here.</p>}
-              {myRequests.map((request) => {
-                const StatusIcon = statusIcons[request.status] || Clock;
-                return (
-                  <div key={request.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-start gap-3">
-                      {request.images?.[0] && <img src={getImageUrl(request.images[0])} alt={request.businessName} className="w-14 h-14 object-cover rounded-md" />}
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-primary truncate">{request.businessName || request.requesterName}</p>
-                        <p className="text-xs text-gray-500 capitalize">{request.providerType} request</p>
-                        <span className={`inline-flex items-center gap-1 border rounded-full px-2 py-1 mt-2 text-xs capitalize ${statusStyles[request.status] || statusStyles.pending}`}>
-                          <StatusIcon size={13} /> {request.status}
-                        </span>
-                      </div>
-                      {/* ✅ Edit & Cancel buttons removed */}
-                    </div>
-                    {request.status === 'rejected' && request.rejectionReason && (
-                      <p className="text-sm text-red-600 mt-3">{request.rejectionReason}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );
