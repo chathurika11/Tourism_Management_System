@@ -135,10 +135,17 @@ const LandingPage = () => {
   const noResults = hasFilters && !hasResults;
 
   // ---- Render functions ----
+  // 🔥 NEW: helper to get top 3 highest-rated items
+  const getTop3 = (items) => {
+    if (!items) return [];
+    return [...items].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 3);
+  };
+
   const renderPopularHotels = (hotels = hotelsData) => {
     if (hotelsLoading) return <p className="text-gray-500">Loading hotels...</p>;
-    if (!hotels?.length) return <p className="text-gray-500">No hotels found</p>;
-    return hotels.map(hotel => (
+    const topHotels = getTop3(hotels);
+    if (!topHotels.length) return <p className="text-gray-500">No hotels found</p>;
+    return topHotels.map(hotel => (
       <div key={hotel.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
@@ -159,8 +166,9 @@ const LandingPage = () => {
 
   const renderPopularVehicles = (vehicles = vehiclesData) => {
     if (vehiclesLoading) return <p className="text-gray-500">Loading vehicles...</p>;
-    if (!vehicles?.length) return <p className="text-gray-500">No vehicles found</p>;
-    return vehicles.map(vehicle => (
+    const topVehicles = getTop3(vehicles);
+    if (!topVehicles.length) return <p className="text-gray-500">No vehicles found</p>;
+    return topVehicles.map(vehicle => (
       <div key={vehicle.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
@@ -181,8 +189,9 @@ const LandingPage = () => {
 
   const renderPopularGuides = (guides = guidesData) => {
     if (guidesLoading) return <p className="text-gray-500">Loading guides...</p>;
-    if (!guides?.length) return <p className="text-gray-500">No guides found</p>;
-    return guides.map(guide => (
+    const topGuides = getTop3(guides);
+    if (!topGuides.length) return <p className="text-gray-500">No guides found</p>;
+    return topGuides.map(guide => (
       <div key={guide.id} className="group bg-white rounded-xl shadow-lg p-5 text-center transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(guide.image)} alt={guide.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-primary group-hover:border-cta transition-colors" loading="lazy" />
         <h3 className="font-bold text-primary">{guide.name}</h3>
@@ -198,8 +207,9 @@ const LandingPage = () => {
 
   const renderPopularPackages = (packages = packagesData) => {
     if (packagesLoading) return <p className="text-gray-500">Loading tour packages...</p>;
-    if (!packages?.length) return <p className="text-gray-500">No tour packages found</p>;
-    return packages.map(pkg => (
+    const topPackages = getTop3(packages);
+    if (!topPackages.length) return <p className="text-gray-500">No tour packages found</p>;
+    return topPackages.map(pkg => (
       <div key={pkg.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
         <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
         <div className="p-5">
@@ -218,6 +228,7 @@ const LandingPage = () => {
     ));
   };
 
+  // ---- Main render ----
   return (
     <div>
       {/* Hero Section */}
@@ -241,7 +252,6 @@ const LandingPage = () => {
           {/* Two‑field search form – DISTRICT FIRST */}
           <form onSubmit={handleSearch} className="max-w-3xl mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-white/20">
             <div className="flex flex-col md:flex-row gap-3">
-              {/* District / Location – now first */}
               <div className="flex-1">
                 <input
                   type="text"
@@ -251,7 +261,6 @@ const LandingPage = () => {
                   className="w-full px-4 py-3 rounded-full bg-white/20 text-white placeholder-white/70 focus:outline-none border border-white/10"
                 />
               </div>
-              {/* Name – second */}
               <div className="flex-1">
                 <input
                   type="text"
@@ -339,7 +348,23 @@ const LandingPage = () => {
                   <div className="mb-12">
                     <h3 className="text-2xl font-semibold text-primary mb-4">Tour Packages</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {renderPopularPackages(filteredPackages)}
+                      {filteredPackages.map(pkg => (
+                        <div key={pkg.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
+                          <img src={getImageUrl(pkg.image)} alt={pkg.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                          <div className="p-5">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-bold text-lg text-primary">{pkg.name}</h3>
+                              <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+                                <Star size={12} className="text-cta fill-current" /> {pkg.rating?.toFixed(1) || 'N/A'}
+                              </div>
+                            </div>
+                            <p className="text-gray-500 text-sm my-2"><MapPin size={14} className="inline mr-1" />{pkg.district}</p>
+                            <div className="flex justify-between items-center mt-3">
+                              <span className="text-lg font-bold text-primary">Rs {formatPrice(pkg.price)}<span className="text-xs">/package</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -347,7 +372,23 @@ const LandingPage = () => {
                   <div className="mb-12">
                     <h3 className="text-2xl font-semibold text-primary mb-4">Hotels</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {renderPopularHotels(filteredHotels)}
+                      {filteredHotels.map(hotel => (
+                        <div key={hotel.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
+                          <img src={getImageUrl(hotel.image)} alt={hotel.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                          <div className="p-5">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-bold text-lg text-primary">{hotel.name}</h3>
+                              <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+                                <Star size={12} className="text-cta fill-current" /> {hotel.rating?.toFixed(1) || 'N/A'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-500 text-sm my-2"><Hotel size={14} /> {hotel.location || 'N/A'}</div>
+                            <div className="flex justify-between items-center mt-3">
+                              <span className="text-lg font-bold text-primary">Rs {formatPrice(hotel.pricePerNight)}<span className="text-xs">/night</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -355,7 +396,23 @@ const LandingPage = () => {
                   <div className="mb-12">
                     <h3 className="text-2xl font-semibold text-primary mb-4">Vehicles</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {renderPopularVehicles(filteredVehicles)}
+                      {filteredVehicles.map(vehicle => (
+                        <div key={vehicle.id} className="group bg-white rounded-xl shadow-lg overflow-hidden transform hover:scale-105 transition-all duration-300">
+                          <img src={getImageUrl(vehicle.image)} alt={vehicle.model} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
+                          <div className="p-5">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-bold text-lg text-primary">{vehicle.model}</h3>
+                              <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full text-xs">
+                                <Star size={12} className="text-cta fill-current" /> {vehicle.rating?.toFixed(1) || 'N/A'}
+                              </div>
+                            </div>
+                            <p className="text-gray-500 text-sm my-2">{vehicle.type} • {vehicle.location}</p>
+                            <div className="flex justify-between items-center mt-3">
+                              <span className="text-lg font-bold text-primary">Rs {formatPrice(vehicle.pricePerDay)}<span className="text-xs">/day</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -363,7 +420,18 @@ const LandingPage = () => {
                   <div className="mb-12">
                     <h3 className="text-2xl font-semibold text-primary mb-4">Tour Guides</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      {renderPopularGuides(filteredGuides)}
+                      {filteredGuides.map(guide => (
+                        <div key={guide.id} className="group bg-white rounded-xl shadow-lg p-5 text-center transform hover:scale-105 transition-all duration-300">
+                          <img src={getImageUrl(guide.image)} alt={guide.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-primary group-hover:border-cta transition-colors" loading="lazy" />
+                          <h3 className="font-bold text-primary">{guide.name}</h3>
+                          <p className="text-xs text-gray-600">{guide.specialty}</p>
+                          <div className="flex items-center justify-center gap-1 mt-2">
+                            <Star size={14} className="text-cta fill-current" />
+                            <span className="text-sm font-semibold">{guide.rating?.toFixed(1) || 'N/A'}</span>
+                            <span className="text-xs text-gray-400">({guide.reviews || 0} reviews)</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -376,44 +444,44 @@ const LandingPage = () => {
       {/* ---- Regular sections (only shown when NOT filtering) ---- */}
       {!hasFilters && (
         <>
-          {/* Popular Tour Packages */}
+          {/* Popular Tour Packages – TOP 3 highest rated */}
           <section className="py-16 bg-cream">
             <div className="container mx-auto px-4">
               <div className="flex justify-between items-center mb-12">
-                <div><h2 className="text-3xl font-bold text-primary">Popular Tour Packages</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
+                <div><h2 className="text-3xl font-bold text-primary">Top Rated Tour Packages</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
                 <Link to="/tours" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularPackages()}</div>
             </div>
           </section>
 
-          {/* Popular Hotels */}
+          {/* Popular Hotels – TOP 3 highest rated */}
           <section className="py-16 bg-white">
             <div className="container mx-auto px-4">
               <div className="flex justify-between items-center mb-12">
-                <div><h2 className="text-3xl font-bold text-primary">Popular Hotels</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
+                <div><h2 className="text-3xl font-bold text-primary">Top Rated Hotels</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
                 <Link to="/hotels" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularHotels()}</div>
             </div>
           </section>
 
-          {/* Vehicles for Rent */}
+          {/* Vehicles for Rent – TOP 3 highest rated */}
           <section className="py-16 bg-cream">
             <div className="container mx-auto px-4">
               <div className="flex justify-between items-center mb-12">
-                <div><h2 className="text-3xl font-bold text-primary">Vehicles for Rent</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
+                <div><h2 className="text-3xl font-bold text-primary">Top Rated Vehicles</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
                 <Link to="/vehicles" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">{renderPopularVehicles()}</div>
             </div>
           </section>
 
-          {/* Expert Tour Guides */}
+          {/* Expert Tour Guides – TOP 3 highest rated */}
           <section className="py-16 bg-white">
             <div className="container mx-auto px-4">
               <div className="flex justify-between items-center mb-12">
-                <div><h2 className="text-3xl font-bold text-primary">Expert Tour Guides</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
+                <div><h2 className="text-3xl font-bold text-primary">Top Rated Guides</h2><p className="text-gray-600 mt-1">Highest Rated First</p></div>
                 <Link to="/guides" className="text-secondary hover:text-primary flex items-center gap-1">View All <ArrowRight size={16} /></Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">{renderPopularGuides()}</div>

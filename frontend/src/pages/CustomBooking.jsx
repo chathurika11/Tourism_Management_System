@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { X, ChevronRight, ChevronDown } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import API from '../services/api';
 
-// Fix Leaflet icons (required for markers)
+// Fix Leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -96,7 +96,6 @@ const DistrictMap = ({ startPoint, positions, optimalRoute, districtName }) => {
 // ---------- Main CustomBooking component ----------
 const CustomBooking = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // to read returnToStep from state
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -119,33 +118,45 @@ const CustomBooking = () => {
   const [hotelsMap, setHotelsMap] = useState({});
   const [loadingServices, setLoadingServices] = useState({});
 
-  // On mount, check if we should return to a specific step (from Payment page)
-  useEffect(() => {
-    if (location.state?.returnToStep) {
-      setStep(location.state.returnToStep);
-      // Clear the state so it doesn't persist on reload
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, navigate, location.pathname]);
-
-  // Helper for minimum start date (48 hours from now)
-  const getMinStartDate = () => {
-    const date = new Date();
-    date.setHours(date.getHours() + 48);
-    return date.toISOString().split('T')[0];
+  // ---- Helper: save current state to sessionStorage (includes step) ----
+  const saveToSession = () => {
+    const payload = {
+      destinations,
+      startDate,
+      endDate,
+      passengers,
+      step,
+    };
+    sessionStorage.setItem('pendingCustomBooking', JSON.stringify(payload));
   };
 
-  // Persist progress for unauthenticated users
-  useEffect(() => {
-    const savePending = () => {
-      const payload = { destinations, startDate, endDate, passengers };
-      sessionStorage.setItem('pendingCustomBooking', JSON.stringify(payload));
-    };
-    const id = setInterval(savePending, 3000);
-    return () => clearInterval(id);
-  }, [destinations, startDate, endDate, passengers]);
+  // ---- Helper: restore from sessionStorage ----
+  const restoreFromSession = () => {
+    const pending = sessionStorage.getItem('pendingCustomBooking');
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        if (parsed.startDate) setStartDate(parsed.startDate);
+        if (parsed.endDate) setEndDate(parsed.endDate);
+        if (parsed.passengers) setPassengers(parsed.passengers);
+        if (parsed.destinations) setDestinations(parsed.destinations);
+        if (parsed.step) setStep(parsed.step);
+        sessionStorage.removeItem('pendingCustomBooking');
+        return true;
+      } catch (e) {
+        console.warn('Invalid pendingCustomBooking', e);
+      }
+    }
+    return false;
+  };
 
-  // Load districts
+  // ---- Auto‑save every 3 seconds (includes step) ----
+  useEffect(() => {
+    const interval = setInterval(saveToSession, 3000);
+    return () => clearInterval(interval);
+  }, [destinations, startDate, endDate, passengers, step]);
+
+  // ---- Load districts and restore session on mount ----
   useEffect(() => {
     const fetchDistricts = async () => {
       setLoadingDistricts(true);
@@ -160,20 +171,39 @@ const CustomBooking = () => {
       }
     };
     fetchDistricts();
-    // restore pending booking
-    const pending = sessionStorage.getItem('pendingCustomBooking');
-    if (pending) {
-      try {
-        const parsed = JSON.parse(pending);
-        if (parsed.startDate) setStartDate(parsed.startDate);
-        if (parsed.endDate) setEndDate(parsed.endDate);
-        if (parsed.passengers) setPassengers(parsed.passengers);
-        if (parsed.destinations) setDestinations(parsed.destinations);
-        sessionStorage.removeItem('pendingCustomBooking');
-      } catch (e) { console.warn('Invalid pendingCustomBooking', e); }
+
+    // Restore session data
+    const restored = restoreFromSession();
+    if (restored) {
+      // We'll fetch items for each destination in the next effect.
     }
   }, []);
 
+  // ---- After districts loaded and destinations restored, fetch items for each district ----
+  useEffect(() => {
+    if (loadingDistricts) return;
+    const fetchPromises = [];
+    destinations.forEach(dest => {
+      if (dest.districtId && !guidesMap[dest.districtId]) {
+        const district = districts.find(d => d.id === dest.districtId);
+        if (district) {
+          fetchPromises.push(fetchItemsForDistrict(dest.districtId, district.name));
+        }
+      }
+    });
+    if (fetchPromises.length > 0) {
+      Promise.all(fetchPromises).then(() => {});
+    }
+  }, [loadingDistricts, destinations, districts]);
+
+  // ---- Helper for minimum start date (48 hours from now) ----
+  const getMinStartDate = () => {
+    const date = new Date();
+    date.setHours(date.getHours() + 48);
+    return date.toISOString().split('T')[0];
+  };
+
+  // ---- Fetch items for a district ----
   const fetchItemsForDistrict = async (districtId, districtName) => {
     setLoadingServices(prev => ({ ...prev, [districtId]: true }));
     try {
@@ -206,13 +236,14 @@ const CustomBooking = () => {
     setLoadingServices(prev => ({ ...prev, [districtId]: false }));
   };
 
-  // Total nights – fixed (no subtraction)
+  // ---- Total nights (no subtraction) ----
   const numberOfNights = useMemo(() => {
     if (!startDate || !endDate) return 0;
     const diff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
     return diff > 0 ? diff : 0;
   }, [startDate, endDate]);
 
+  // ---- Destination management ----
   const addDestination = () => {
     setDestinations([...destinations, { id: nextId, districtId: '', districtName: '', places: [], needGuide: false, guideId: '', needHotel: false, hotelBudget: '', hotelId: '', needVehicle: false, vehicleId: '' }]);
     setNextId(nextId + 1);
@@ -247,26 +278,30 @@ const CustomBooking = () => {
     }
   };
 
+  // ---- Total price calculation – FIXED ----
+  // Price = (sum of per‑day prices of selected guide/vehicle/hotel) × (number of nights)
+  // This matches: (addition of guide, vehicle, hotels if selected) × (days‑1)
   const calculateTotal = useMemo(() => {
     let total = 0;
-    const days = numberOfNights + 1;
+    const nights = numberOfNights; // Use nights directly (not +1)
     destinations.forEach(d => {
       if (d.needGuide && d.guideId) {
         const guide = (guidesMap[d.districtId] || []).find(g => g.id === d.guideId);
-        if (guide) total += guide.pricePerDay * days;
+        if (guide) total += guide.pricePerDay * nights;
       }
       if (d.needVehicle && d.vehicleId) {
         const vehicle = (vehiclesMap[d.districtId] || []).find(v => v.id === d.vehicleId);
-        if (vehicle) total += vehicle.pricePerDay * days;
+        if (vehicle) total += vehicle.pricePerDay * nights;
       }
       if (d.needHotel && d.hotelId) {
         const hotel = (hotelsMap[d.districtId] || []).find(h => h.id === d.hotelId);
-        if (hotel) total += hotel.pricePerNight * days;
+        if (hotel) total += hotel.pricePerNight * nights;
       }
     });
     return total;
   }, [destinations, numberOfNights, guidesMap, vehiclesMap, hotelsMap]);
 
+  // ---- Validation functions ----
   const validateStep1 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -295,6 +330,7 @@ const CustomBooking = () => {
   };
 
   const validateStep3 = () => passengers >= 1;
+
   const validateStep4 = () => {
     for (let i = 0; i < destinations.length; i++) {
       const d = destinations[i];
@@ -306,6 +342,7 @@ const CustomBooking = () => {
     return true;
   };
 
+  // ---- Navigation ----
   const handleNext = () => {
     if (step === 1 && validateStep1()) setStep(2);
     else if (step === 2 && validateStep2()) setStep(3);
@@ -314,16 +351,13 @@ const CustomBooking = () => {
     else if (step === 5) setStep(6);
     else if (step === 6) setStep(7);
   };
+
   const handlePrev = () => { if (step > 1) setStep(step - 1); };
 
+  // ---- Confirm booking (saves state before redirecting to login) ----
   const handleConfirmBooking = async () => {
     if (!user) {
-      sessionStorage.setItem('pendingCustomBooking', JSON.stringify({
-        destinations,
-        startDate,
-        endDate,
-        passengers,
-      }));
+      saveToSession();
       toast.error('Please login to confirm booking');
       navigate('/login');
       return;
@@ -342,7 +376,7 @@ const CustomBooking = () => {
       };
     });
     const totalAmount = calculateTotal;
-    const days = numberOfNights + 1;
+    const days = numberOfNights + 1; // total days for the booking (inclusive)
     try {
       const res = await API.post('/bookings', {
         type: 'Multi-District Custom Tour',
@@ -359,6 +393,20 @@ const CustomBooking = () => {
   };
 
   const finalConfirmBooking = () => navigate('/payment');
+
+  // ---- Leaflet icon ----
+  const createNumberedIcon = (number, isStart = false) => {
+    if (isStart) {
+      return L.divIcon({
+        html: `<div style="background:#D4AF37; color:#093C5D; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">S</div>`,
+        className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15]
+      });
+    }
+    return L.divIcon({
+      html: `<div style="background:#093C5D; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${number}</div>`,
+      className: 'custom-div-icon', iconSize: [30,30], popupAnchor: [0,-15]
+    });
+  };
 
   // ---------- Step 1 – Select Destinations (No Vehicle checkbox) ----------
   const renderStep1 = () => {
@@ -599,7 +647,6 @@ const CustomBooking = () => {
       const optimalRoute = calculateOptimalRoute(startPoint, selectedPlaces.map(p => ({ name: p.name, coordinates: getCoordinates(p) })));
       const isOpen = expandedMap === dest.id;
 
-      // Unique key to force remount
       const containerKey = `map-${dest.id}-${isOpen ? 'open' : 'closed'}`;
 
       return (

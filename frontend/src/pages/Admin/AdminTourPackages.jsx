@@ -21,7 +21,7 @@ const AdminTourPackages = () => {
     mealPlan: [],
     inclusions: [],
     destinations: [],
-    status: 'available',   // ✅ Status field added
+    status: 'available',
   });
 
   const [districts, setDistricts] = useState([]);
@@ -45,6 +45,50 @@ const AdminTourPackages = () => {
     { value: 'Meals', label: 'Meals' },
   ];
 
+  // ---- Helper functions to format labels with locations ----
+  const getHotelLabel = (hotel) => {
+    let locationStr = '';
+    if (hotel.locations && hotel.locations.length > 0) {
+      locationStr = hotel.locations.join(', ');
+    } else if (hotel.location) {
+      locationStr = hotel.location;
+    } else if (hotel.district) {
+      locationStr = hotel.district;
+    } else {
+      locationStr = 'N/A';
+    }
+    return `${hotel.name} (${locationStr}) - Rs ${hotel.pricePerNight}/night`;
+  };
+
+  const getVehicleLabel = (vehicle) => {
+    let locationStr = '';
+    if (vehicle.locations && vehicle.locations.length > 0) {
+      locationStr = vehicle.locations.join(', ');
+    } else if (vehicle.location) {
+      locationStr = vehicle.location;
+    } else if (vehicle.district) {
+      locationStr = vehicle.district;
+    } else {
+      locationStr = 'N/A';
+    }
+    return `${vehicle.model} (${locationStr}) - Rs ${vehicle.pricePerDay}/day`;
+  };
+
+  const getGuideLabel = (guide) => {
+    let locationStr = '';
+    if (guide.locations && guide.locations.length > 0) {
+      locationStr = guide.locations.join(', ');
+    } else if (guide.location) {
+      locationStr = guide.location;
+    } else if (guide.district) {
+      locationStr = guide.district;
+    } else {
+      locationStr = 'N/A';
+    }
+    return `${guide.name} (${locationStr}) - Rs ${guide.pricePerDay}/day`;
+  };
+
+  // ---- Fetch districts ----
   useEffect(() => {
     API.get('/districts')
       .then(res => setDistricts(res.data))
@@ -165,7 +209,7 @@ const AdminTourPackages = () => {
     fd.append('popular', formData.popular);
     fd.append('mealPlan', JSON.stringify(formData.mealPlan));
     fd.append('inclusions', JSON.stringify(formData.inclusions));
-    fd.append('status', formData.status);   // ✅ Status appended
+    fd.append('status', formData.status);
     const destinationsToSend = formData.destinations.map(({ id, ...rest }) => rest);
     fd.append('destinations', JSON.stringify(destinationsToSend));
     if (imageFile) fd.append('image', imageFile);
@@ -188,7 +232,7 @@ const AdminTourPackages = () => {
       mealPlan: pkg.mealPlan ? pkg.mealPlan.split(', ') : [],
       inclusions: pkg.inclusions || [],
       destinations: (pkg.destinations || []).map((d, idx) => ({ ...d, id: Date.now() + idx })),
-      status: pkg.status || 'available',   // ✅ status from existing package
+      status: pkg.status || 'available',
     });
     setImagePreview(getImageUrl(pkg.image));
     setShowModal(true);
@@ -278,7 +322,7 @@ const AdminTourPackages = () => {
               <div><label>Meal Plan (multi-select)</label><Select isMulti options={mealPlanOptions} value={mealPlanOptions.filter(opt => formData.mealPlan.includes(opt.value))} onChange={(selected) => setFormData({...formData, mealPlan: selected.map(s => s.value)})} /></div>
               <div><label>Inclusions (multi-select)</label><Select isMulti options={inclusionOptions} value={inclusionOptions.filter(opt => formData.inclusions.includes(opt.value))} onChange={(selected) => setFormData({...formData, inclusions: selected.map(s => s.value)})} /></div>
 
-              {/* ✅ Status Dropdown – exactly like AdminHotels, AdminVehicles, AdminGuides */}
+              {/* Status Dropdown */}
               <div>
                 <label className="block font-medium mb-1">Status</label>
                 <select
@@ -300,9 +344,20 @@ const AdminTourPackages = () => {
                   const districtOptions = districts.map(d => ({ value: d.id, label: d.name }));
                   const selectedDistrict = districts.find(d => d.id === dest.districtId);
                   const placeOptions = selectedDistrict?.places || [];
-                  const hotelOptions = (hotelsMap[dest.districtId] || []).map(h => ({ value: h.id, label: `${h.name} - Rs ${h.pricePerNight}/night` }));
-                  const vehicleOptions = (vehiclesMap[dest.districtId] || []).map(v => ({ value: v.id, label: `${v.model} (${v.type}) - Rs ${v.pricePerDay}/day` }));
-                  const guideOptions = (guidesMap[dest.districtId] || []).map(g => ({ value: g.id, label: `${g.name} - Rs ${g.pricePerDay}/day` }));
+                  
+                  // ─── Use helper functions for labels ───
+                  const hotelOptions = (hotelsMap[dest.districtId] || []).map(h => ({ 
+                    value: h.id, 
+                    label: getHotelLabel(h) 
+                  }));
+                  const vehicleOptions = (vehiclesMap[dest.districtId] || []).map(v => ({ 
+                    value: v.id, 
+                    label: getVehicleLabel(v) 
+                  }));
+                  const guideOptions = (guidesMap[dest.districtId] || []).map(g => ({ 
+                    value: g.id, 
+                    label: getGuideLabel(g) 
+                  }));
 
                   return (
                     <div key={dest.id} className="border rounded-lg p-4 mb-4 relative bg-gray-50">
@@ -310,9 +365,48 @@ const AdminTourPackages = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div><label>District</label><Select options={districtOptions} value={districtOptions.find(opt => opt.value === dest.districtId)} onChange={(opt) => handleDistrictSelect(dest.id, opt?.value)} placeholder="Select district" /></div>
                         <div><label>Places (select at least one)</label><Select isMulti options={placeOptions.map(p => ({ value: p.id, label: p.name }))} value={placeOptions.filter(p => dest.places.includes(p.id)).map(p => ({ value: p.id, label: p.name }))} onChange={(selected) => updateDestination(dest.id, 'places', selected.map(s => s.value))} isDisabled={!dest.districtId} /></div>
-                        <div><label className="flex items-center gap-2"><input type="checkbox" checked={dest.needGuide} onChange={e => updateDestination(dest.id, 'needGuide', e.target.checked)} /> Select a Guide</label>{dest.needGuide && <Select options={guideOptions} value={guideOptions.find(opt => opt.value === dest.guideId)} onChange={(opt) => updateDestination(dest.id, 'guideId', opt?.value)} isDisabled={!dest.districtId} placeholder="Choose guide" />}</div>
-                        <div><label className="flex items-center gap-2"><input type="checkbox" checked={dest.needHotel} onChange={e => updateDestination(dest.id, 'needHotel', e.target.checked)} /> Select a Hotel</label>{dest.needHotel && <Select options={hotelOptions} value={hotelOptions.find(opt => opt.value === dest.hotelId)} onChange={(opt) => updateDestination(dest.id, 'hotelId', opt?.value)} isDisabled={!dest.districtId} placeholder="Choose hotel" />}</div>
-                        <div><label className="flex items-center gap-2"><input type="checkbox" checked={dest.needVehicle} onChange={e => updateDestination(dest.id, 'needVehicle', e.target.checked)} /> Select a Vehicle</label>{dest.needVehicle && <Select options={vehicleOptions} value={vehicleOptions.find(opt => opt.value === dest.vehicleId)} onChange={(opt) => updateDestination(dest.id, 'vehicleId', opt?.value)} isDisabled={!dest.districtId} placeholder="Choose vehicle" />}</div>
+                        <div>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={dest.needGuide} onChange={e => updateDestination(dest.id, 'needGuide', e.target.checked)} /> Select a Guide
+                          </label>
+                          {dest.needGuide && (
+                            <Select 
+                              options={guideOptions} 
+                              value={guideOptions.find(opt => opt.value === dest.guideId)} 
+                              onChange={(opt) => updateDestination(dest.id, 'guideId', opt?.value)} 
+                              isDisabled={!dest.districtId} 
+                              placeholder="Choose guide" 
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={dest.needHotel} onChange={e => updateDestination(dest.id, 'needHotel', e.target.checked)} /> Select a Hotel
+                          </label>
+                          {dest.needHotel && (
+                            <Select 
+                              options={hotelOptions} 
+                              value={hotelOptions.find(opt => opt.value === dest.hotelId)} 
+                              onChange={(opt) => updateDestination(dest.id, 'hotelId', opt?.value)} 
+                              isDisabled={!dest.districtId} 
+                              placeholder="Choose hotel" 
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={dest.needVehicle} onChange={e => updateDestination(dest.id, 'needVehicle', e.target.checked)} /> Select a Vehicle
+                          </label>
+                          {dest.needVehicle && (
+                            <Select 
+                              options={vehicleOptions} 
+                              value={vehicleOptions.find(opt => opt.value === dest.vehicleId)} 
+                              onChange={(opt) => updateDestination(dest.id, 'vehicleId', opt?.value)} 
+                              isDisabled={!dest.districtId} 
+                              placeholder="Choose vehicle" 
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
